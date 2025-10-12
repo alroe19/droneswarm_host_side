@@ -1,11 +1,33 @@
 #!/usr/bin/env python3
 
-from picamera2 import Picamera2, Preview
-from libcamera import Transform
 
 
+class AICamera:
+    def __init__(self):
+        print("[AI Camera] Initializing camera and model...")
+        # Later: load model, initialize camera (Picamera2, etc.)
 
-picam2 = Picamera2()
-picam2.start_preview(Preview.QTGL, x=100, y=200, width=800, height=600,
-transform=Transform(hflip=1))
-picam2.start()
+    def start(self):
+        print("[AI Camera] Starting detection loop...")
+        # Later: start grabbing frames and running inference
+
+    def stop(self):
+        print("[AI Camera] Stopping camera...")
+        # Later: cleanup
+
+def main():
+    print("[System] AI Camera Controller starting...")
+    camera = AICamera()
+    
+    try:
+        camera.start()
+        # Placeholder loop (simulate running)
+        while True:
+            pass  # <-- Placeholder: detection will go here
+
+    except KeyboardInterrupt:
+        print("\n[System] Shutting down...")
+        camera.stop()
+
+if __name__ == "__main__":
+    main()
