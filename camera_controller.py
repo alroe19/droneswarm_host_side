@@ -7,7 +7,8 @@ class CameraNode:
     def __init__(self):
         print("[Camera Node] Initializing camera and model...")
         self.camera = Picamera2()
-        self.camera.start_preview(Preview.QTGL, x=100, y=200, width=800, height=600, transform=Transform(hflip=1))
+        # self.camera.start_preview(Preview.QTGL, x=100, y=200, width=800, height=600, transform=Transform(ver))
+        self.camera.start_preview(Preview.NULL)
 
     def start(self):
         print("[Camera Node] Starting detection loop...")
@@ -17,6 +18,11 @@ class CameraNode:
         print("[Camera Node] Stopping camera...")
         self.camera.stop()
 
+    def change_model(self, model_name):
+        print(f"[Camera Node] Changing model to {model_name}...")
+        # Placeholder for model change logic
+
+        
 def main():
     print("[System] Camera Node starting...")
     camera = CameraNode()
