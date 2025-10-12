@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
 
-class AICamera:
+class CameraNode:
     def __init__(self):
-        print("[AI Camera] Initializing camera and model...")
+        print("[Camera Node] Initializing camera and model...")
         # Later: load model, initialize camera (Picamera2, etc.)
 
     def start(self):
-        print("[AI Camera] Starting detection loop...")
+        print("[Camera Node] Starting detection loop...")
         # Later: start grabbing frames and running inference
 
     def stop(self):
-        print("[AI Camera] Stopping camera...")
+        print("[Camera Node] Stopping camera...")
         # Later: cleanup
 
 def main():
-    print("[System] AI Camera Controller starting...")
-    camera = AICamera()
+    print("[System] Camera Node starting...")
+    camera = CameraNode()
     
     try:
         camera.start()
