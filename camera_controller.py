@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 
-
-
 class AICamera:
     def __init__(self):
         print("[AI Camera] Initializing camera and model...")
