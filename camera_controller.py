@@ -1,41 +1,51 @@
 #!/usr/bin/env python3
 
 from picamera2 import Picamera2, Preview
+from picamera2.devices import IMX500
 from libcamera import Transform
+import os
 
-class CameraNode:
+
+class RPICameraController:
     def __init__(self):
-        print("[Camera Node] Initializing camera and model...")
-        self.camera = Picamera2()
-        # self.camera.start_preview(Preview.QTGL, x=100, y=200, width=800, height=600, transform=Transform(ver))
-        self.camera.start_preview(Preview.NULL)
+
+        self.camera = Picamera2(imx500.camera_num)
+        self.camera.start_preview(Preview.QTGL, x=100, y=200, width=800, height=600, transform=Transform(vflip=1))
+        # self.camera.start_preview(Preview.NULL)
 
     def start(self):
-        print("[Camera Node] Starting detection loop...")
+
         self.camera.start()
 
+
     def stop(self):
-        print("[Camera Node] Stopping camera...")
+
         self.camera.stop()
 
-    def change_model(self, model_name):
-        print(f"[Camera Node] Changing model to {model_name}...")
-        # Placeholder for model change logic
+
+    def change_model(self, model_name: str):
+
+        # Check if model exists in models folder
+        if not os.path.exists("/models/" + model_name + ".rpk"):
+            raise FileNotFoundError("Model: " + model_name + " not found in models folder")
+
+        self.imx500 = IMX500("/models/" + model_name + ".rpk")
 
         
 def main():
-    print("[System] Camera Node starting...")
-    camera = CameraNode()
+
+    camera_controller = RPICameraController()
     
     try:
-        camera.start()
-        # Placeholder loop (simulate running)
+        camera_controller.change_model("imx500_network_yolo11n_pp")
+
+        camera_controller.start()
         while True:
             pass  # <-- Placeholder: detection will go here
 
     except KeyboardInterrupt:
-        print("\n[System] Shutting down...")
-        camera.stop()
+
+        camera_controller.stop()
 
 if __name__ == "__main__":
     main()
