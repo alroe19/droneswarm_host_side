@@ -4,7 +4,9 @@ import os
 import sys
 from picamera2 import Picamera2, Preview
 from picamera2.devices import IMX500
+from picamera2.devices.imx500 import NetworkIntrinsics
 from libcamera import Transform
+
 
 # class RPICameraController:
 #     def __init__(self, camera_num=0, model_dir="models"):
@@ -71,8 +73,9 @@ def main():
 
     model_dir = "./models/imx500_network_yolo11n_pp.rpk"
     imx500 = IMX500(model_dir)
-    intrinsics = imx500.network_intrinsics
+    intrinsics = imx500.network_intrinsics # Load network settings from model if available
     
+    # Validate or set default intrinsics. aka check if intrinsics is present and correct, otherwise set default
     if not intrinsics:
         intrinsics = NetworkIntrinsics()
         intrinsics.task = "object detection"
@@ -81,10 +84,27 @@ def main():
     
     print("Network Intrinsics:")
     print(intrinsics)
-        
-
     
+    picam2 = Picamera2(imx500.camera_num)
 
+    config = picam2.create_preview_configuration(
+        controls = {}, 
+        buffer_count=12
+    )
+
+    imx500.show_network_fw_progress_bar()
+    picam2.start(config, show_preview=False)
+    
+    if intrinsics.preserve_aspect_ratio:
+        imx500.set_auto_aspect_ratio()
+
+
+    metadata = picam2.capture_metadata()
+
+    picam2.stop()
+
+    print("Capture metadata:")
+    print(metadata)    
 
 if __name__ == "__main__":
     main()
