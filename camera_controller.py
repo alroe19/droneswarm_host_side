@@ -219,9 +219,9 @@ if __name__ == "__main__":
 
     try:
         while True:
-            detections = controller.capture()
-            if detections:
-                print(f"Detections: {detections}")
+            results = controller.capture(draw_detection=True)
+            if results:
+                print(f"Detections: {results}")
     except KeyboardInterrupt:
         pass
     
