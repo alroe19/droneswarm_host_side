@@ -4,6 +4,7 @@ from picamera2.devices.imx500 import NetworkIntrinsics
 from functools import lru_cache
 import numpy as np
 import cv2
+import matplotlib.pyplot as plt
 
 
 class Detection:
@@ -116,10 +117,10 @@ class RPICameraController:
         
         return detections[:self.__max_detections] # Return only up to max_detections. Also works when actual detections are fewer than max_detections.
     
-    def __make_detection(self, box, score, category, metadata):
+    def __make_detection(self, box, conf, category, metadata):
         """Convert raw detection to Detection object with scaled box coordinates."""
         box = self.__imx500_active_model.convert_inference_coords(box, metadata, self.__picam2)
-        return Detection(category, score, box)
+        return Detection(box, category, conf)
 
     @lru_cache
     def __get_labels(self):
@@ -137,7 +138,7 @@ class RPICameraController:
         # Draw detections
         with MappedArray(request, stream) as m:
             # Create a copy of the array to draw the background with opacity
-            overlay = m.array.copy()  # single copy per frame
+            detection_frame = m.array.copy()  # single copy per frame
 
             for detection in detections:
                 x, y, w, h = map(int, detection.box)
@@ -149,15 +150,15 @@ class RPICameraController:
                 text_x = x + 5
                 text_y = y + 15
 
-                # Draw the background rectangle on the overlay
-                cv2.rectangle(overlay,
+                # Draw the background rectangle on the detection_frame
+                cv2.rectangle(detection_frame,
                             (text_x, text_y - text_height),
                             (text_x + text_width, text_y + baseline),
                             (255, 255, 255),  # Background color (white)
                             cv2.FILLED)
 
                 alpha = 0.30
-                cv2.addWeighted(overlay, alpha, m.array, 1 - alpha, 0, m.array)
+                cv2.addWeighted(detection_frame, alpha, m.array, 1 - alpha, 0, m.array)
 
                 # Draw text on top of the background
                 cv2.putText(m.array, label, (text_x, text_y),
@@ -172,7 +173,7 @@ class RPICameraController:
                 cv2.putText(m.array, "ROI", (b_x + 5, b_y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
                 cv2.rectangle(m.array, (b_x, b_y), (b_x + b_w, b_y + b_h), (255, 0, 0))
 
-        return m.array.copy()
+        return detection_frame
 
 
     def capture(self, draw_detection = False):
@@ -218,10 +219,20 @@ if __name__ == "__main__":
     controller.start()
 
     try:
+        # Create a non-blocking matplotlib figure for live display
+        plt.ion()
+        fig, ax = plt.subplots()
+
         while True:
             results = controller.capture(draw_detection=True)
-            if results:
-                print(f"Detections: {results}")
+            if results["detection_frame"] is not None:
+                frame = results["detection_frame"]
+                # frame is RGB888; matplotlib expects RGB ordering
+                ax.imshow(frame)
+                ax.axis('off')
+                fig.canvas.draw()
+                plt.pause(0.001)
+                ax.clear()
     except KeyboardInterrupt:
         pass
     
