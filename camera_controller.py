@@ -2,6 +2,7 @@ from picamera2 import Picamera2
 from picamera2.devices import IMX500
 from picamera2.devices.imx500 import NetworkIntrinsics
 import numpy as np
+import cv2
 
 class Detection:
     def __init__(self, box, category, score):
@@ -16,36 +17,42 @@ class RPICameraController:
     def __init__(self, model_path=None, labels_path=None):
 
         ## Initiate IMX500 and Picamera2 variables
-        self.picam2 = None
-        self.imx500_active_model = None
-        self.intrinsics = None
-        self.running = False
+        self.__picam2 = None
+        self.__imx500_active_model = None
+        self.__intrinsics = None
+        self.__running = False
 
-        self.iou = 0.65 # Intersection over Union
-        self.conf_threshold = 0.55 # Confidence threshold
-        self.max_detections = 3 # Maximum number of detections
+        self.__conf_threshold = 0.55 # Confidence threshold
+        self.__max_detections = 3 # Maximum number of detections
 
         if model_path != None and labels_path != None:
             self.load_model(model_path, labels_path)
 
+    def update_threshold(self, new_threshold):
+        """Update the confidence threshold."""
+        self.__conf_threshold = new_threshold
+    
+    def update_max_detections(self, new_max):
+        """Update the maximum number of detections."""
+        self.__max_detections = new_max
 
     def load_model(self, model_path, labels_path=None):
         """Load or switch the AI model."""
         print(f"Loading model: {model_path}")
 
         # Stop camera if running
-        if self.running:
+        if self.__running:
             self.stop()
 
         # Load IMX500 model
-        self.imx500_model = IMX500(model_path)
-        self.intrinsics = self.imx500_model.network_intrinsics
+        self.__imx500_active_model = IMX500(model_path)
+        self.__intrinsics = self.__imx500_active_model.network_intrinsics
 
         # Ensure intrinsics are set
-        if not self.intrinsics:
-            self.intrinsics = NetworkIntrinsics()
-            self.intrinsics.task = "object detection"
-        elif self.intrinsics.task != "object detection":
+        if not self.__intrinsics:
+            self.__intrinsics = NetworkIntrinsics()
+            self.__intrinsics.task = "object detection"
+        elif self.__intrinsics.task != "object detection":
             raise RuntimeError("This model is not an object detection network.")
 
         # Load custom labels if provided
@@ -53,40 +60,40 @@ class RPICameraController:
             with open(labels_path, "r") as f:
                 self.intrinsics.labels = f.read().splitlines()
 
-        self.intrinsics.update_with_defaults()
+        self.__intrinsics.update_with_defaults()
 
         # Prepare camera after model load
-        self.picam2 = Picamera2(self.imx500_model.camera_num)
+        self.__picam2 = Picamera2(self.imx500_active_model.camera_num)
         print("Model loaded successfully.")
 
     def start(self):
         """Start camera inference."""
-        if not self.picam2:
+        if not self.__picam2:
             raise RuntimeError("No model loaded — call load_model() first.")
         
-        config = self.picam2.create_preview_configuration(
-            controls={"FrameRate": self.intrinsics.inference_rate},
+        config = self.__picam2.create_preview_configuration(
+            controls={"FrameRate": self.__intrinsics.inference_rate},
             buffer_count=12
         )
 
-        self.picam2.start(config, show_preview=False)
-        self.running = True
+        self.__picam2.start(config, show_preview=False)
+        self.__running = True
         print("Camera started.")
 
     def stop(self):
         """Stop camera."""
-        if self.picam2:
-            self.picam2.stop()
-            self.running = False
+        if self.__picam2:
+            self.__picam2.stop()
+            self.__running = False
             print("Camera stopped.")
 
-    def parse_detections(self, metadata: dict):
+    def __parse_detections(self, metadata: dict):
 
         """Parse the output tensor into a number of detected objects, scaled to the ISP output."""
-        bbox_normalization = self.intrinsics.bbox_normalization
+        bbox_normalization = self.__intrinsics.bbox_normalization
 
-        np_outputs = self.imx500_active_model.get_outputs(metadata, add_batch=True)
-        __, input_h = self.imx500_active_model.get_input_size()
+        np_outputs = self.__imx500_active_model.get_outputs(metadata, add_batch=True)
+        __, input_h = self.__imx500_active_model.get_input_size()
 
         # Check for output, if none return none
         if np_outputs is None:
@@ -101,33 +108,88 @@ class RPICameraController:
         boxes = zip(*boxes)
 
         detections = [
-            Detection(category,
-                      score,
-                      box=self.imx500_active_model.convert_inference_coords(box, metadata, self.picam2),
-                      )
+            self.__make_detection(box, score, category, metadata)
             for box, score, category in zip(boxes, scores, classes)
-            if score > self.conf_threshold
+            if score > self.__conf_threshold
         ]
+        
         return detections
+    
+    def __make_detection(self, box, score, category, metadata):
+        """Convert raw detection to Detection object with scaled box coordinates."""
+        box = self.__imx500_active_model.convert_inference_coords(box, metadata, self.picam2)
+        return Detection(category, score, box)
+
+    # def __draw_detections(self, request):
+    #     """Draw the detections for this request onto the ISP output."""
+        
+    #     with MappedArray(request, stream) as m:
+    #         for detection in detections:
+    #             x, y, w, h = detection.box
+    #             label = f"{labels[int(detection.category)]} ({detection.conf:.2f})"
+
+    #             # Calculate text size and position
+    #             (text_width, text_height), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+    #             text_x = x + 5
+    #             text_y = y + 15
+
+    #             # Create a copy of the array to draw the background with opacity
+    #             overlay = m.array.copy()
+
+    #             # Draw the background rectangle on the overlay
+    #             cv2.rectangle(overlay,
+    #                         (text_x, text_y - text_height),
+    #                         (text_x + text_width, text_y + baseline),
+    #                         (255, 255, 255),  # Background color (white)
+    #                         cv2.FILLED)
+
+    #             alpha = 0.30
+    #             cv2.addWeighted(overlay, alpha, m.array, 1 - alpha, 0, m.array)
+
+    #             # Draw text on top of the background
+    #             cv2.putText(m.array, label, (text_x, text_y),
+    #                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+
+    #             # Draw detection box
+    #             cv2.rectangle(m.array, (x, y), (x + w, y + h), (0, 255, 0, 0), thickness=2)
+
+    #         if self.__intrinsics.preserve_aspect_ratio:
+    #             b_x, b_y, b_w, b_h = self.__imx500_active_model.get_roi_scaled(request)
+    #             color = (255, 0, 0)  # red
+    #             cv2.putText(m.array, "ROI", (b_x + 5, b_y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+    #             cv2.rectangle(m.array, (b_x, b_y), (b_x + b_w, b_y + b_h), (255, 0, 0, 0))
 
 
-    # def get_detections(self):
-    #     """Return AI detections from the current frame."""
-    #     if not self.running:
-    #         return []
+    def capture(self, draw_detection = False):
+        """Fetch a new request and its metadata."""
+        request = self.__picam2.capture_request()
+        metadata = request.get_metadata()
+        detections = None
+        
+        # Check if metadata is present, if so the frame is valid
+        if not metadata:
+            request.release()
+            return None
+        
+        detections = self.__parse_detections(metadata)
 
-    #     metadata = self.picam2.capture_metadata()
-    #     outputs = self.imx500_model.get_outputs(metadata, add_batch=True)
-    #     if outputs is None:
-    #         return []
+        if draw_detection and detections:
+            # detection_frame = self.__draw_detections(request)
+            # request.release()
+            # return {
+            #     "detections": detections,
+            #     "detection_frame": detection_frame
+            # }
+            pass
+        
+        else: 
+            request.release()
+            return {
+                "detections": detections,
+                "detection_frame": None
+            }
 
-    #     boxes, scores, labels = outputs[0][0], outputs[1][0], outputs[2][0]
-    #     detections = [
-    #         (box, float(score), int(label))
-    #         for box, score, label in zip(boxes, scores, labels)
-    #         if score > 0.5  # Default threshold
-    #     ]
-    #     return detections
+
 
     def close(self):
         """Cleanup"""
@@ -143,7 +205,7 @@ if __name__ == "__main__":
 
     try:
         while True:
-            detections = controller.get_detections()
+            detections = controller.capture()
             if detections:
                 print(f"Detections: {detections}")
     except KeyboardInterrupt:
