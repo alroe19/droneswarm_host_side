@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import os
+import sys
 from picamera2 import Picamera2, Preview
 from picamera2.devices import IMX500
 from libcamera import Transform
@@ -70,10 +71,18 @@ def main():
 
     model_dir = "./models/imx500_network_yolo11n_pp.rpk"
     imx500 = IMX500(model_dir)
-    intrinsics = imx500.get_camera_intrinsics()
-    print("Camera Intrinsics:")
-    print(intrinsics)
+    intrinsics = imx500.network_intrinsics
     
+    if not intrinsics:
+        intrinsics = NetworkIntrinsics()
+        intrinsics.task = "object detection"
+    elif intrinsics.task != "object detection":
+        raise RuntimeError(f"Model task '{intrinsics.task}' is not 'object detection'")
+    
+    print("Network Intrinsics:")
+    print(intrinsics)
+        
+
     
 
 
