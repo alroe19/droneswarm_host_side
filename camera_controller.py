@@ -1,16 +1,16 @@
-from picamera2 import Picamera2
+from picamera2 import Picamera2, MappedArray
 from picamera2.devices import IMX500
 from picamera2.devices.imx500 import NetworkIntrinsics
+from functools import lru_cache
 import numpy as np
 import cv2
 
+
 class Detection:
-    def __init__(self, box, category, score):
+    def __init__(self, box, category, conf):
         self.box = box  # [ymin, xmin, ymax, xmax] normalized
-        self.category = int(category)
-        self.score = float(score)
-
-
+        self.category = category
+        self.conf = conf
 
 
 class RPICameraController:
@@ -58,12 +58,12 @@ class RPICameraController:
         # Load custom labels if provided
         if labels_path:
             with open(labels_path, "r") as f:
-                self.intrinsics.labels = f.read().splitlines()
+                self.__intrinsics.labels = f.read().splitlines()
 
         self.__intrinsics.update_with_defaults()
 
         # Prepare camera after model load
-        self.__picam2 = Picamera2(self.imx500_active_model.camera_num)
+        self.__picam2 = Picamera2(self.__imx500_active_model.camera_num)
         print("Model loaded successfully.")
 
     def start(self):
@@ -72,7 +72,8 @@ class RPICameraController:
             raise RuntimeError("No model loaded — call load_model() first.")
         
         config = self.__picam2.create_preview_configuration(
-            controls={"FrameRate": self.__intrinsics.inference_rate},
+            main = {"format": "RGB888"},
+            controls = {"FrameRate": self.__intrinsics.inference_rate},
             buffer_count=12
         )
 
@@ -100,7 +101,7 @@ class RPICameraController:
             return None
 
         # Skal måske ændre hvis vi bruger en anden model som ikke er SSD
-        boxes, scores, classes = np_outputs[0][0], np_outputs[1][0], np_outputs[2][0]
+        boxes, conf, classes = np_outputs[0][0], np_outputs[1][0], np_outputs[2][0]
         if bbox_normalization:
             boxes = boxes / input_h
 
@@ -108,56 +109,70 @@ class RPICameraController:
         boxes = zip(*boxes)
 
         detections = [
-            self.__make_detection(box, score, category, metadata)
-            for box, score, category in zip(boxes, scores, classes)
-            if score > self.__conf_threshold
+            self.__make_detection(box, conf, category, metadata)
+            for box, conf, category in zip(boxes, conf, classes)
+            if conf > self.__conf_threshold
         ]
         
-        return detections
+        return detections[:self.__max_detections] # Return only up to max_detections. Also works when actual detections are fewer than max_detections.
     
     def __make_detection(self, box, score, category, metadata):
         """Convert raw detection to Detection object with scaled box coordinates."""
-        box = self.__imx500_active_model.convert_inference_coords(box, metadata, self.picam2)
+        box = self.__imx500_active_model.convert_inference_coords(box, metadata, self.__picam2)
         return Detection(category, score, box)
 
-    # def __draw_detections(self, request):
-    #     """Draw the detections for this request onto the ISP output."""
+    @lru_cache
+    def __get_labels(self):
+        labels = self.__intrinsics.labels
+
+        if self.__intrinsics.ignore_dash_labels:
+            labels = [label for label in labels if label and label != "-"]
+        return labels
+
+    def __draw_detections(self, detections, request, stream="main"):
+        """Draw the detections for this request onto the ISP output."""
         
-    #     with MappedArray(request, stream) as m:
-    #         for detection in detections:
-    #             x, y, w, h = detection.box
-    #             label = f"{labels[int(detection.category)]} ({detection.conf:.2f})"
+        labels = self.__get_labels() # Retrieve labels
 
-    #             # Calculate text size and position
-    #             (text_width, text_height), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
-    #             text_x = x + 5
-    #             text_y = y + 15
+        # Draw detections
+        with MappedArray(request, stream) as m:
+            # Create a copy of the array to draw the background with opacity
+            overlay = m.array.copy()  # single copy per frame
 
-    #             # Create a copy of the array to draw the background with opacity
-    #             overlay = m.array.copy()
+            for detection in detections:
+                x, y, w, h = map(int, detection.box)
 
-    #             # Draw the background rectangle on the overlay
-    #             cv2.rectangle(overlay,
-    #                         (text_x, text_y - text_height),
-    #                         (text_x + text_width, text_y + baseline),
-    #                         (255, 255, 255),  # Background color (white)
-    #                         cv2.FILLED)
+                label = f"{labels[int(detection.category)]} ({detection.conf:.2f})"
 
-    #             alpha = 0.30
-    #             cv2.addWeighted(overlay, alpha, m.array, 1 - alpha, 0, m.array)
+                # Calculate text size and position
+                (text_width, text_height), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+                text_x = x + 5
+                text_y = y + 15
 
-    #             # Draw text on top of the background
-    #             cv2.putText(m.array, label, (text_x, text_y),
-    #                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+                # Draw the background rectangle on the overlay
+                cv2.rectangle(overlay,
+                            (text_x, text_y - text_height),
+                            (text_x + text_width, text_y + baseline),
+                            (255, 255, 255),  # Background color (white)
+                            cv2.FILLED)
 
-    #             # Draw detection box
-    #             cv2.rectangle(m.array, (x, y), (x + w, y + h), (0, 255, 0, 0), thickness=2)
+                alpha = 0.30
+                cv2.addWeighted(overlay, alpha, m.array, 1 - alpha, 0, m.array)
 
-    #         if self.__intrinsics.preserve_aspect_ratio:
-    #             b_x, b_y, b_w, b_h = self.__imx500_active_model.get_roi_scaled(request)
-    #             color = (255, 0, 0)  # red
-    #             cv2.putText(m.array, "ROI", (b_x + 5, b_y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
-    #             cv2.rectangle(m.array, (b_x, b_y), (b_x + b_w, b_y + b_h), (255, 0, 0, 0))
+                # Draw text on top of the background
+                cv2.putText(m.array, label, (text_x, text_y),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+
+                # Draw detection box
+                cv2.rectangle(m.array, (x, y), (x + w, y + h), (0, 255, 0), thickness=2)
+
+            if self.__intrinsics.preserve_aspect_ratio:
+                b_x, b_y, b_w, b_h = self.__imx500_active_model.get_roi_scaled(request)
+                color = (255, 0, 0)  # red
+                cv2.putText(m.array, "ROI", (b_x + 5, b_y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+                cv2.rectangle(m.array, (b_x, b_y), (b_x + b_w, b_y + b_h), (255, 0, 0))
+
+        return m.array.copy()
 
 
     def capture(self, draw_detection = False):
@@ -174,13 +189,12 @@ class RPICameraController:
         detections = self.__parse_detections(metadata)
 
         if draw_detection and detections:
-            # detection_frame = self.__draw_detections(request)
-            # request.release()
-            # return {
-            #     "detections": detections,
-            #     "detection_frame": detection_frame
-            # }
-            pass
+            detection_frame = self.__draw_detections(detections, request)
+            request.release()
+            return {
+                "detections": detections,
+                "detection_frame": detection_frame
+            }
         
         else: 
             request.release()
