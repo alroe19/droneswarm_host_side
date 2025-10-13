@@ -4,7 +4,6 @@ from picamera2.devices.imx500 import NetworkIntrinsics
 from functools import lru_cache
 import numpy as np
 import cv2
-import matplotlib.pyplot as plt
 
 
 class Detection:
@@ -29,13 +28,16 @@ class RPICameraController:
         if model_path != None and labels_path != None:
             self.load_model(model_path, labels_path)
 
+
     def update_threshold(self, new_threshold):
         """Update the confidence threshold."""
         self.__conf_threshold = new_threshold
     
+
     def update_max_detections(self, new_max):
         """Update the maximum number of detections."""
         self.__max_detections = new_max
+
 
     def load_model(self, model_path, labels_path=None):
         """Load or switch the AI model."""
@@ -67,6 +69,7 @@ class RPICameraController:
         self.__picam2 = Picamera2(self.__imx500_active_model.camera_num)
         print("Model loaded successfully.")
 
+
     def start(self):
         """Start camera inference."""
         if not self.__picam2:
@@ -82,12 +85,14 @@ class RPICameraController:
         self.__running = True
         print("Camera started.")
 
+
     def stop(self):
         """Stop camera."""
         if self.__picam2:
             self.__picam2.stop()
             self.__running = False
             print("Camera stopped.")
+
 
     def __parse_detections(self, metadata: dict):
 
@@ -117,6 +122,7 @@ class RPICameraController:
         
         return detections[:self.__max_detections] # Return only up to max_detections. Also works when actual detections are fewer than max_detections.
     
+
     def __make_detection(self, box, conf, category, metadata):
         """Convert raw detection to Detection object with scaled box coordinates."""
         box = self.__imx500_active_model.convert_inference_coords(box, metadata, self.__picam2)
@@ -205,7 +211,6 @@ class RPICameraController:
             }
 
 
-
     def close(self):
         """Cleanup"""
         self.stop()
@@ -219,20 +224,13 @@ if __name__ == "__main__":
     controller.start()
 
     try:
-        # Create a non-blocking matplotlib figure for live display
-        plt.ion()
-        fig, ax = plt.subplots()
-
         while True:
             results = controller.capture(draw_detection=True)
             if results["detection_frame"] is not None:
-                frame = results["detection_frame"]
-                # frame is RGB888; matplotlib expects RGB ordering
-                ax.imshow(frame)
-                ax.axis('off')
-                fig.canvas.draw()
-                plt.pause(0.001)
-                ax.clear()
+                detection = results["detections"]
+                print("Objects coordinates on image:")
+                for obj in detection:
+                    print(f" - {obj['label']}: {obj['box']}")
     except KeyboardInterrupt:
         pass
     
