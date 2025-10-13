@@ -18,10 +18,10 @@ from picamera2.devices.imx500 import (NetworkIntrinsics,
 
 class Detection:
     def __init__(self, coords, category, conf, metadata):
-        """Create a Detection object, recording the bounding box, category and confidence."""
+        """Create a Detection object containing the bounding box, category and confidence value."""
         self.category = category
         self.conf = conf
-        self.box = imx500.convert_inference_coords(coords, metadata, picam2)
+        self.box = imx500.convert_inference_coords(coords, metadata, picam2) # Converts the coordinates coords from the input tensor coordinate space to the final ISP output image space.
 
 
 def parse_detections(metadata: dict):
@@ -119,40 +119,92 @@ def get_labels():
 #             cv2.waitKey(1)
 #         request.release()
 
+class RPICameraController:
+    def __init__(self):
+
+        ## Initiate IMX500 and Picamera2 variables
+        self.picam2 = None
+        self.imx500 = None
+        self.active_model = None
+
+        # Initialize multiprocessing pool and job queue
+        self.pool = multiprocessing.Pool(processes=4)
+        self.jobs = multiprocessing.Queue()
+
+    def load_model(self, model_path, labels_path=None):
+
+        # Before loading a new model, stop the camera if it is running
+        if self.picam2:
+            self.picam2.stop()
+
+        self.imx500 = IMX500(model_path)
+        self.active_model = self.imx500
+
+        intrinsics = self.imx500.network_intrinsics
+        if not intrinsics:
+            intrinsics = NetworkIntrinsics()
+            intrinsics.task = "object detection"
+        elif intrinsics.task != "object detection":
+            raise RuntimeError("Wrong task")
+
+        if intrinsics.labels is None and labels_path:
+            with open(labels_path, "r") as f:
+                intrinsics.labels = f.read().splitlines()
+        intrinsics.update_with_defaults()
+
+        self.picam2 = Picamera2(self.imx500.camera_num) # Create Picamera2 instance with the IMX500 camera number
+
+        self.main = {'format': 'RGB888'}
+        config = self.picam2.create_preview_configuration(self.main, controls={"FrameRate": intrinsics.inference_rate}, buffer_count=12)
+
+        self.imx500.show_network_fw_progress_bar()
+
+        self.picam2.start(config, show_preview=False)
+        if intrinsics.preserve_aspect_ratio:
+            self.imx500.set_auto_aspect_ratio()
+
+
+    def capture_and_queue(self):
+        
+
+
 if __name__ == "__main__":
 
+
+    camera_controller = RPICameraController() 
+
+    camera_controller.load_model("/usr/share/imx500-models/imx500_network_ssd_mobilenetv2_fpnlite_320x320_pp.rpk", "./coco_labels.txt")
     # This must be called before instantiation of Picamera2
     # imx500 = IMX500("./models/imx500_network_yolo11n_pp.rpk")
-    imx500 = IMX500("/usr/share/imx500-models/imx500_network_ssd_mobilenetv2_fpnlite_320x320_pp.rpk")
-    intrinsics = imx500.network_intrinsics
-    if not intrinsics:
-        intrinsics = NetworkIntrinsics()
-        intrinsics.task = "object detection"
-    elif intrinsics.task != "object detection":
-        print("Network is not an object detection task", file=sys.stderr)
-        exit()
+    # imx500 = IMX500("/usr/share/imx500-models/imx500_network_ssd_mobilenetv2_fpnlite_320x320_pp.rpk")
+    # intrinsics = imx500.network_intrinsics
+    # if not intrinsics:
+    #     intrinsics = NetworkIntrinsics()
+    #     intrinsics.task = "object detection"
+    # elif intrinsics.task != "object detection":
+    #     print("Network is not an object detection task", file=sys.stderr)
+    #     exit()
 
-    # Defaults
-    if intrinsics.labels is None:
-        with open("./coco_labels.txt", "r") as f:
-            intrinsics.labels = f.read().splitlines()
-    intrinsics.update_with_defaults()
+    # # Defaults
+    # if intrinsics.labels is None:
+    #     with open("./coco_labels.txt", "r") as f:
+    #         intrinsics.labels = f.read().splitlines()
+    # intrinsics.update_with_defaults()
 
     # if True:
     #     print(intrinsics)
     #     exit()
 
-    picam2 = Picamera2(imx500.camera_num)
-    main = {'format': 'RGB888'}
-    config = picam2.create_preview_configuration(main, controls={"FrameRate": intrinsics.inference_rate}, buffer_count=12)
+    # picam2 = Picamera2(imx500.camera_num)
+    # main = {'format': 'RGB888'}
+    # config = picam2.create_preview_configuration(main, controls={"FrameRate": intrinsics.inference_rate}, buffer_count=12)
 
-    imx500.show_network_fw_progress_bar()
-    picam2.start(config, show_preview=False)
-    if intrinsics.preserve_aspect_ratio:
-        imx500.set_auto_aspect_ratio()
+    # imx500.show_network_fw_progress_bar()
+    # picam2.start(config, show_preview=False)
+    # if intrinsics.preserve_aspect_ratio:
+    #     imx500.set_auto_aspect_ratio()
 
-    pool = multiprocessing.Pool(processes=4)
-    jobs = queue.Queue()
+
 
     # thread = threading.Thread(target=draw_detections, args=(jobs,))
     # thread.start()
