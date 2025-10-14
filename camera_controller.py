@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 from picamera2 import Picamera2, MappedArray
 from picamera2.devices import IMX500
 from picamera2.devices.imx500 import NetworkIntrinsics
@@ -80,6 +82,8 @@ class RPICameraController:
             controls = {"FrameRate": self.__intrinsics.inference_rate},
             buffer_count=12
         )
+
+        self.__imx500_active_model.show_network_fw_progress_bar()
 
         self.__picam2.start(config, show_preview=False)
         self.__running = True
@@ -220,7 +224,7 @@ class RPICameraController:
 if __name__ == "__main__":
 
     controller = RPICameraController()
-    controller.load_model("   ", "coco_labels.txt")
+    controller.load_model("/models/imx500_network_yolo11n_pp.rpk", "coco_labels.txt")
     controller.start()
 
     try:
