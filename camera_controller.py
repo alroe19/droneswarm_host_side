@@ -6,6 +6,9 @@ from picamera2.devices.imx500 import NetworkIntrinsics
 from functools import lru_cache
 import numpy as np
 import cv2
+import logging
+
+
 
 
 class Detection:
@@ -34,16 +37,18 @@ class RPICameraController:
     def update_threshold(self, new_threshold):
         """Update the confidence threshold."""
         self.__conf_threshold = new_threshold
+        logging.info(f"Updated confidence threshold: {new_threshold}")
     
 
     def update_max_detections(self, new_max):
         """Update the maximum number of detections."""
         self.__max_detections = new_max
+        logging.info(f"Updated maximum detections: {new_max}")
 
 
     def load_model(self, model_path, labels_path=None):
         """Load or switch the AI model."""
-        print(f"Loading model: {model_path}")
+        logging.info(f"Loading model: {model_path}")
 
         # Stop camera if running
         if self.__running:
@@ -69,7 +74,7 @@ class RPICameraController:
 
         # Prepare camera after model load
         self.__picam2 = Picamera2(self.__imx500_active_model.camera_num)
-        print("Model loaded successfully.")
+        logging.info("Model loaded successfully.")
 
 
     def start(self):
@@ -83,11 +88,11 @@ class RPICameraController:
             buffer_count=12
         )
 
-        self.__imx500_active_model.show_network_fw_progress_bar()
+        
 
         self.__picam2.start(config, show_preview=False)
         self.__running = True
-        print("Camera started.")
+        logging.info("Camera started.")
 
 
     def stop(self):
@@ -95,7 +100,7 @@ class RPICameraController:
         if self.__picam2:
             self.__picam2.stop()
             self.__running = False
-            print("Camera stopped.")
+            logging.info("Camera stopped.")
 
 
     def __parse_detections(self, metadata: dict):
@@ -218,7 +223,7 @@ class RPICameraController:
     def close(self):
         """Cleanup"""
         self.stop()
-        print("Controller closed.")
+        logging.info("Controller closed.")
 
 
 if __name__ == "__main__":
