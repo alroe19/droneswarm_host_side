@@ -9,6 +9,7 @@ import cv2
 import logging
 
 
+logging.basicConfig(level=logging.INFO)
 
 
 class Detection:
@@ -71,6 +72,9 @@ class RPICameraController:
                 self.__intrinsics.labels = f.read().splitlines()
 
         self.__intrinsics.update_with_defaults()
+
+        logging.info("Model intrinsics:")
+        logging.info(self.__intrinsics)
 
         # Prepare camera after model load
         self.__picam2 = Picamera2(self.__imx500_active_model.camera_num)
