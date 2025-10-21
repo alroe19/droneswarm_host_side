@@ -7,6 +7,7 @@ from functools import lru_cache
 import numpy as np
 import cv2
 import logging
+import matplotlib.pyplot as plt
 
 
 logging.basicConfig(level=logging.INFO)
@@ -233,17 +234,37 @@ class RPICameraController:
 if __name__ == "__main__":
 
     controller = RPICameraController()
-    controller.load_model("/models/imx500_network_yolo11n_pp.rpk", "coco_labels.txt")
+    controller.load_model("./models/network.rpk", "./models/labels.txt")
     controller.start()
 
     try:
+        # Create a single interactive matplotlib figure and update it each loop
+        plt.ion()
+        fig, ax = plt.subplots()
+        im = None
+
         while True:
             results = controller.capture(draw_detection=True)
             if results["detection_frame"] is not None:
-                detection = results["detections"]
-                print("Objects coordinates on image:")
-                for obj in detection:
-                    print(f" - {obj['label']}: {obj['box']}")
+                frame = results["detection_frame"]
+
+                # Display the RGB888 frame in the matplotlib Axes using a single Image artist
+                if im is None:
+                    im = ax.imshow(frame)
+                    ax.axis('off')
+                else:
+                    im.set_data(frame)
+
+                fig.canvas.draw_idle()
+                plt.pause(0.001)
+
+                # Print detection info using Detection object attributes
+                detections = results["detections"]
+                if detections:
+                    logging.info("Objects coordinates on image:")
+                    for det in detections:
+                        # det is a Detection object with fields box, category, conf
+                        logging.info(f" - category={det.category}, conf={det.conf:.2f}, box={det.box}")
     except KeyboardInterrupt:
         pass
     
