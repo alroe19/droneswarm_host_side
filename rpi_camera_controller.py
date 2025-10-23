@@ -45,3 +45,12 @@ class RPICameraController:
 
         self.__picam2.start(config, show_preview=False)
         logging.info("Camera started.")
+
+
+
+if __name__ == "__main__":
+
+    model_path = "path/to/your/model.blob"
+    labels_path = "path/to/your/labels.txt"
+
+    camera_controller = RPICameraController(model_path, labels_path)
