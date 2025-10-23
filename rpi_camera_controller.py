@@ -130,3 +130,5 @@ if __name__ == "__main__":
             if detections:
                 for det in detections:
                     print(f"Box: {det.box}, Category: {det.category}, Confidence: {det.conf}")
+    except KeyboardInterrupt:
+        pass
