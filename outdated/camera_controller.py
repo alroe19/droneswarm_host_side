@@ -7,7 +7,6 @@ from functools import lru_cache
 import numpy as np
 import cv2
 import logging
-import matplotlib.pyplot as plt
 
 
 logging.basicConfig(level=logging.INFO)
@@ -93,8 +92,6 @@ class RPICameraController:
             buffer_count=12
         )
 
-        
-
         self.__picam2.start(config, show_preview=False)
         self.__running = True
         logging.info("Camera started.")
@@ -157,12 +154,8 @@ class RPICameraController:
 
         # Draw detections
         with MappedArray(request, stream) as m:
-            # m.array is RGB (camera format). OpenCV drawing functions expect BGR.
-            # Convert a copy to BGR, perform all drawing in BGR, then convert back to RGB.
-            src_rgb = m.array.copy()
-            src_bgr = cv2.cvtColor(src_rgb, cv2.COLOR_RGB2BGR)
-
-            overlay_bgr = src_bgr.copy()
+            # Create a copy of the array to draw the background with opacity
+            detection_frame = m.array.copy()  # single copy per frame
 
             for detection in detections:
                 x, y, w, h = map(int, detection.box)
@@ -174,33 +167,30 @@ class RPICameraController:
                 text_x = x + 5
                 text_y = y + 15
 
-                # Draw the background rectangle on the overlay (BGR colors)
-                cv2.rectangle(overlay_bgr,
-                              (text_x, text_y - text_height),
-                              (text_x + text_width, text_y + baseline),
-                              (255, 255, 255),  # white (same in BGR)
-                              cv2.FILLED)
+                # Draw the background rectangle on the detection_frame
+                cv2.rectangle(detection_frame,
+                            (text_x, text_y - text_height),
+                            (text_x + text_width, text_y + baseline),
+                            (255, 255, 255),  # Background color (white)
+                            cv2.FILLED)
 
                 alpha = 0.30
-                cv2.addWeighted(overlay_bgr, alpha, src_bgr, 1 - alpha, 0, src_bgr)
+                cv2.addWeighted(detection_frame, alpha, m.array, 1 - alpha, 0, m.array)
 
-                # Draw text on the BGR image (red in BGR is (0,0,255))
-                cv2.putText(src_bgr, label, (text_x, text_y),
+                # Draw text on top of the background
+                cv2.putText(m.array, label, (text_x, text_y),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
 
-                # Draw detection box in green (BGR)
-                cv2.rectangle(src_bgr, (x, y), (x + w, y + h), (0, 255, 0), thickness=2)
+                # Draw detection box
+                cv2.rectangle(m.array, (x, y), (x + w, y + h), (0, 255, 0), thickness=2)
 
             if self.__intrinsics.preserve_aspect_ratio:
                 b_x, b_y, b_w, b_h = self.__imx500_active_model.get_roi_scaled(request)
-                color = (0, 0, 255)  # red in BGR
-                cv2.putText(src_bgr, "ROI", (int(b_x) + 5, int(b_y) + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
-                cv2.rectangle(src_bgr, (int(b_x), int(b_y)), (int(b_x + b_w), int(b_y + b_h)), (0, 0, 255))
+                color = (255, 0, 0)  # red
+                cv2.putText(m.array, "ROI", (b_x + 5, b_y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+                cv2.rectangle(m.array, (b_x, b_y), (b_x + b_w, b_y + b_h), (255, 0, 0))
 
-            # Convert back to RGB for display with matplotlib
-            result_rgb = cv2.cvtColor(src_bgr, cv2.COLOR_BGR2RGB)
-
-        return result_rgb
+        return detection_frame
 
 
     def capture(self, draw_detection = False):
@@ -241,37 +231,17 @@ class RPICameraController:
 if __name__ == "__main__":
 
     controller = RPICameraController()
-    controller.load_model("./models/network.rpk", "./models/labels.txt")
+    controller.load_model("/models/imx500_network_yolo11n_pp.rpk", "coco_labels.txt")
     controller.start()
 
     try:
-        # Create a single interactive matplotlib figure and update it each loop
-        plt.ion()
-        fig, ax = plt.subplots()
-        im = None
-
         while True:
             results = controller.capture(draw_detection=True)
             if results["detection_frame"] is not None:
-                frame = results["detection_frame"]
-
-                # Display the RGB888 frame in the matplotlib Axes using a single Image artist
-                if im is None:
-                    im = ax.imshow(frame)
-                    ax.axis('off')
-                else:
-                    im.set_data(frame)
-
-                fig.canvas.draw_idle()
-                plt.pause(0.001)
-
-                # Print detection info using Detection object attributes
-                detections = results["detections"]
-                if detections:
-                    logging.info("Objects coordinates on image:")
-                    for det in detections:
-                        # det is a Detection object with fields box, category, conf
-                        logging.info(f" - category={det.category}, conf={det.conf:.2f}, box={det.box}")
+                detection = results["detections"]
+                print("Objects coordinates on image:")
+                for obj in detection:
+                    print(f" - {obj['label']}: {obj['box']}")
     except KeyboardInterrupt:
         pass
     
