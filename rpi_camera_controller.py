@@ -53,19 +53,18 @@ class RPICameraController:
         self.__picam2.start(config, show_preview=False)
 
 
-    def __parse_detections(self, metadata: dict):
+    def parse_detections(self, metadata: dict):
         """Parse the output tensor into a number of detected objects, scaled to the ISP output."""
 
         bbox_normalization = self.__intrinsics.bbox_normalization
 
+
         np_outputs = self.__imx500_active_model.get_outputs(metadata, add_batch=True)
         input_w, input_h = self.__imx500_active_model.get_input_size()
-
-        # Check for output, if none return none
         if np_outputs is None:
             return None
 
-        boxes, conf, classes = np_outputs[0][0], np_outputs[1][0], np_outputs[2][0]
+        boxes, scores, classes = np_outputs[0][0], np_outputs[1][0], np_outputs[2][0]
         if bbox_normalization:
             boxes = boxes / input_h
 
@@ -73,13 +72,12 @@ class RPICameraController:
         boxes = zip(*boxes)
 
         detections = [
-            self.__convert_detection(box, conf, category, metadata)
-            for box, conf, category in zip(boxes, conf, classes)
-            if conf > self.__conf_threshold
+            Detection(box, category, score, metadata)
+            for i, (box, score, category) in enumerate(zip(boxes, scores, classes))
+            if score > self.__conf_threshold and i < self.__max_detections
         ]
-        
-        return detections[:self.__max_detections] # Return only up to max_detections. Also works when actual detections are fewer than max_detections.
 
+        return detections
 
     def __convert_detection(self, box, conf, category, metadata):
         """Convert raw detection to Detection object with scaled box coordinates."""
