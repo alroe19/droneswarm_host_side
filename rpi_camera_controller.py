@@ -53,7 +53,7 @@ class RPICameraController:
         self.__picam2.start(config, show_preview=False)
 
 
-    def parse_detections(self, metadata: dict):
+    def __parse_detections(self, metadata: dict):
         """Parse the output tensor into a number of detected objects, scaled to the ISP output."""
 
         bbox_normalization = self.__intrinsics.bbox_normalization
@@ -72,7 +72,7 @@ class RPICameraController:
         boxes = zip(*boxes)
 
         detections = [
-            Detection(box, category, score, metadata)
+            self.__convert_detection(box, score, category, metadata)
             for i, (box, score, category) in enumerate(zip(boxes, scores, classes))
             if score > self.__conf_threshold and i < self.__max_detections
         ]
