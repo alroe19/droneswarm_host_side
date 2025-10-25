@@ -60,7 +60,7 @@ class RPICameraController:
         """Parse the output tensor into a number of detected objects, scaled to the ISP output."""
 
         bbox_normalization = self.__intrinsics.bbox_normalization
-        bbox_order = self.__intrinsics.bbox_order
+        bbox_order = True
 
 
         np_outputs = self.__imx500_active_model.get_outputs(metadata, add_batch=True)
@@ -71,16 +71,16 @@ class RPICameraController:
         boxes, scores, classes = np_outputs[0][0], np_outputs[1][0], np_outputs[2][0]
         if bbox_normalization:
             boxes = boxes / input_h
-
-        # if bbox_order == "xy":
-        #     boxes = boxes[:, [1, 0, 3, 2]]
+        
+        if True:
+            boxes = boxes[:, [1, 0, 3, 2]]
         boxes = np.array_split(boxes, 4, axis=1)
         boxes = zip(*boxes)
 
         detections = [
             self.__convert_detection(box, score, category, metadata)
-            for i, (box, score, category) in enumerate(zip(boxes, scores, classes))
-            if score > self.__conf_threshold and i < self.__max_detections
+            for box, score, category in zip(boxes, scores, classes)
+            if score > self.__conf_threshold
         ]
 
         return detections
