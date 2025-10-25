@@ -1,103 +1,113 @@
-import argparse
-import sys
-from functools import lru_cache
 
-import cv2
-import numpy as np
-
-from picamera2 import MappedArray, Picamera2
+from picamera2 import Picamera2, MappedArray
 from picamera2.devices import IMX500
-from picamera2.devices.imx500 import (NetworkIntrinsics,
-                                      postprocess_nanodet_detection)
+from picamera2.devices.imx500 import NetworkIntrinsics
+import numpy as np
+import logging
+
+logging.basicConfig(level=logging.INFO)
 
 class Detection:
-    def __init__(self, coords, category, conf, metadata):
-        """Create a Detection object, recording the bounding box, category and confidence."""
+    def __init__(self, box, category, conf):
+        self.box = box  # [ymin, xmin, ymax, xmax] normalized
         self.category = category
         self.conf = conf
-        self.box = imx500.convert_inference_coords(coords, metadata, picam2)
+
+class RPICameraController:
+    def __init__(self, model_path, labels_path):
+
+        ## Initiate IMX500 and Picamera2 variables
+        self.__picam2 = None
+        self.__imx500_active_model = IMX500(model_path)
+        self.__intrinsics = self.__imx500_active_model.network_intrinsics
+
+        self.__conf_threshold = 0.55 # Confidence threshold
+        self.__max_detections = 3 # Maximum number of detections
+
+        # Ensure intrinsics are set
+        if not self.__intrinsics:
+            self.__intrinsics = NetworkIntrinsics()
+            self.__intrinsics.task = "object detection"
+        elif self.__intrinsics.task != "object detection":
+            raise RuntimeError("This model is not an object detection network.")
+
+        # Load custom labels
+        with open(labels_path, "r") as f:
+            self.__intrinsics.labels = f.read().splitlines()
+
+        self.__intrinsics.update_with_defaults()
+
+        logging.info("Model intrinsics:")
+        logging.info(self.__intrinsics)
+
+        # Prepare camera after model load
+        self.__picam2 = Picamera2(self.__imx500_active_model.camera_num)
+
+        # Set camera configurations and start camera
+        config = self.__picam2.create_preview_configuration(
+            # main = {"format": "BGR888"}, # RGB format. Each pixel is laid out as [R, G, B], contrary to the BGR in the name.
+            controls = {"FrameRate": self.__intrinsics.inference_rate},
+            buffer_count=12
+        )
+
+        self.__picam2.start(config, show_preview=False)
 
 
-def parse_detections(metadata: dict):
-    """Parse the output tensor into a number of detected objects, scaled to the ISP output."""
+    def __parse_detections(self, metadata: dict):
+        """Parse the output tensor into a number of detected objects, scaled to the ISP output."""
 
-    bbox_normalization = intrinsics.bbox_normalization
-    bbox_order = intrinsics.bbox_order
-    threshold = 0.55
-
-    np_outputs = imx500.get_outputs(metadata, add_batch=True)
-    input_w, input_h = imx500.get_input_size()
-    if np_outputs is None:
-        return None
-
-    boxes, scores, classes = np_outputs[0][0], np_outputs[1][0], np_outputs[2][0]
-    if bbox_normalization:
-        boxes = boxes / input_h
-
-    if bbox_order == "xy":
-        boxes = boxes[:, [1, 0, 3, 2]]
-    boxes = np.array_split(boxes, 4, axis=1)
-    boxes = zip(*boxes)
-
-    last_detections = [
-        Detection(box, category, score, metadata)
-        for box, score, category in zip(boxes, scores, classes)
-        if score > threshold
-    ]
-    return last_detections
+        bbox_normalization = self.__intrinsics.bbox_normalization
 
 
-@lru_cache
-def get_labels():
-    labels = intrinsics.labels
+        np_outputs = self.__imx500_active_model.get_outputs(metadata, add_batch=True)
+        input_w, input_h = self.__imx500_active_model.get_input_size()
+        if np_outputs is None:
+            return None
 
-    if intrinsics.ignore_dash_labels:
-        labels = [label for label in labels if label and label != "-"]
-    return labels
+        boxes, scores, classes = np_outputs[0][0], np_outputs[1][0], np_outputs[2][0]
+        if bbox_normalization:
+            boxes = boxes / input_h
+
+        boxes = np.array_split(boxes, 4, axis=1)
+        boxes = zip(*boxes)
+
+        detections = [
+            self.__convert_detection(box, score, category, metadata)
+            for i, (box, score, category) in enumerate(zip(boxes, scores, classes))
+            if score > self.__conf_threshold and i < self.__max_detections
+        ]
+
+        return detections
+
+    def __convert_detection(self, box, conf, category, metadata):
+        """Convert raw detection to Detection object with scaled box coordinates."""
+        
+        box = self.__imx500_active_model.convert_inference_coords(box, metadata, self.__picam2)
+        return Detection(box, category, conf)
 
 
-def draw_detections(request, stream="main"):
-    """Draw the detections for this request onto the ISP output."""
-    detections = last_results
-    if detections is None:
-        return
-    labels = get_labels()
-    with MappedArray(request, stream) as m:
-        for detection in detections:
-            x, y, w, h = detection.box
-            label = f"{labels[int(detection.category)]} ({detection.conf:.2f})"
+    def get_inference(self):
+        """ Get inference results from the camera buffer."""
 
-            # Calculate text size and position
-            (text_width, text_height), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
-            text_x = x + 5
-            text_y = y + 15
+        request = self.__picam2.capture_request()
+        metadata = request.get_metadata()
+        detections = None
+        
+        # Check if metadata is present, if so the frame is valid
+        if not metadata:
+            request.release()
+            return None
+        
+        detections = self.__parse_detections(metadata)
 
-            # Create a copy of the array to draw the background with opacity
-            overlay = m.array.copy()
+        request.release()
+        return detections
 
-            # Draw the background rectangle on the overlay
-            cv2.rectangle(overlay,
-                          (text_x, text_y - text_height),
-                          (text_x + text_width, text_y + baseline),
-                          (255, 255, 255),  # Background color (white)
-                          cv2.FILLED)
 
-            alpha = 0.30
-            cv2.addWeighted(overlay, alpha, m.array, 1 - alpha, 0, m.array)
 
-            # Draw text on top of the background
-            cv2.putText(m.array, label, (text_x, text_y),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
-
-            # Draw detection box
-            cv2.rectangle(m.array, (x, y), (x + w, y + h), (0, 255, 0, 0), thickness=2)
-
-        if intrinsics.preserve_aspect_ratio:
-            b_x, b_y, b_w, b_h = imx500.get_roi_scaled(request)
-            color = (255, 0, 0)  # red
-            cv2.putText(m.array, "ROI", (b_x + 5, b_y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
-            cv2.rectangle(m.array, (b_x, b_y), (b_x + b_w, b_y + b_h), (255, 0, 0, 0))
-
+    def __del__(self):
+        """Destructor to stop camera when controller is deleted."""
+        self.__picam2.stop()
 
 
 if __name__ == "__main__":
@@ -105,35 +115,15 @@ if __name__ == "__main__":
     model_path = "./models/network.rpk"
     labels_path = "./models/labels.txt"
 
-    # This must be called before instantiation of Picamera2
-    imx500 = IMX500(model_path)
-    intrinsics = imx500.network_intrinsics
-    if not intrinsics:
-        intrinsics = NetworkIntrinsics()
-        intrinsics.task = "object detection"
-    elif intrinsics.task != "object detection":
-        print("Network is not an object detection task", file=sys.stderr)
-        exit()
+    camera_controller = RPICameraController(model_path, labels_path)
 
-
-
-
-    with open(labels_path, "r") as f:
-        intrinsics.labels = f.read().splitlines()
-    intrinsics.update_with_defaults()
-
-    print(intrinsics)
-
-    picam2 = Picamera2(imx500.camera_num)
-    config = picam2.create_preview_configuration(controls={"FrameRate": intrinsics.inference_rate}, buffer_count=12)
-
-    imx500.show_network_fw_progress_bar()
-    picam2.start(config, show_preview=True)
-
-    if intrinsics.preserve_aspect_ratio:
-        imx500.set_auto_aspect_ratio()
-
-    last_results = None
-    picam2.pre_callback = draw_detections
-    while True:
-        last_results = parse_detections(picam2.capture_metadata())
+    try:
+        while True:
+            detections = camera_controller.get_inference()
+            # print detections box, category and confidence
+            if detections:
+                for det in detections:
+                    print(f"Box: {det.box}, Category: {det.category}, Confidence: {det.conf}")
+                    
+    except KeyboardInterrupt:
+        pass
