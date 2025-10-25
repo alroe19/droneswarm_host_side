@@ -42,32 +42,29 @@ class RPICameraController:
 
         # Prepare camera after model load
         self.__picam2 = Picamera2(self.__imx500_active_model.camera_num)
-        logging.info("Model loaded successfully.")
-
 
         # Set camera configurations and start camera
         config = self.__picam2.create_preview_configuration(
-            # main = {"format": "RGB888"},
+            # main = {"format": "BGR888"}, # RGB format. Each pixel is laid out as [R, G, B], contrary to the BGR in the name.
             controls = {"FrameRate": self.__intrinsics.inference_rate},
             buffer_count=12
         )
 
         self.__picam2.start(config, show_preview=False)
-        logging.info("Camera started.")
+
 
     def __parse_detections(self, metadata: dict):
-
         """Parse the output tensor into a number of detected objects, scaled to the ISP output."""
+
         bbox_normalization = self.__intrinsics.bbox_normalization
 
         np_outputs = self.__imx500_active_model.get_outputs(metadata, add_batch=True)
-        __, input_h = self.__imx500_active_model.get_input_size()
+        input_w, input_h = self.__imx500_active_model.get_input_size()
 
         # Check for output, if none return none
         if np_outputs is None:
             return None
 
-        # Skal måske ændre hvis vi bruger en anden model som ikke er SSD
         boxes, conf, classes = np_outputs[0][0], np_outputs[1][0], np_outputs[2][0]
         if bbox_normalization:
             boxes = boxes / input_h
@@ -113,7 +110,6 @@ class RPICameraController:
     def __del__(self):
         """Destructor to stop camera when controller is deleted."""
         self.__picam2.stop()
-        logging.info("Camera stopped.")
 
 
 if __name__ == "__main__":
@@ -130,5 +126,6 @@ if __name__ == "__main__":
             if detections:
                 for det in detections:
                     print(f"Box: {det.box}, Category: {det.category}, Confidence: {det.conf}")
+                    
     except KeyboardInterrupt:
         pass
