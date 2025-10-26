@@ -125,6 +125,12 @@ class RPICameraController:
         scaled_box = self._imx500_model.convert_inference_coords(box, metadata, self._picam2)
         return Detection(scaled_box, int(category), float(confidence))
 
+    def save_image(self, request: any) -> None:
+        """Save the captured image to the run directory."""
+
+        image_path = os.path.join(self._run_dir, "/image.jpg")
+        request.save("main", image_path)
+
     def get_inference(self) -> Optional[List[Detection]]:
         """Run inference and return detections."""
         if self._picam2 is None:
@@ -132,7 +138,7 @@ class RPICameraController:
 
         request = self._picam2.capture_request()
         metadata = request.get_metadata()
-        request.save("main", "image.jpg")
+        self.save_image(request)
 
         # Check for valid metadata -> valid image and tensor outputs
         if not metadata:
