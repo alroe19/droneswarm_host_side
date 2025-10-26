@@ -166,7 +166,12 @@ class RPICameraController:
             for detection in detections:
                 x, y, w, h = detection.box
                 img_h, img_w = m.array.shape[:2]
-                label = f"{labels[int(detection.category)]} ({detection.confidence:.2f})"
+
+                # Compute image plane error
+                img_cx, img_cy, det_cx, det_cy, total_err = self._compute_image_plane_err(detection, (img_w, img_h))
+
+                # Create label with confidence and error
+                label = f"{labels[int(detection.category)]}, conf: {detection.confidence:.2f}, err: {total_err}"
 
                 # Calculate text size and position
                 (text_width, text_height), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
@@ -176,9 +181,14 @@ class RPICameraController:
                 # Create a copy of the array to draw the background with opacity
                 overlay = m.array.copy()
 
+                # Note on making drawings on top of images: drawings will be placed in order of appearance in the code.
+                # Thus if something is drawn first, it will be under things drawn later.
+
+                # Draw bounding box for detection
+                cv2.rectangle(m.array, (x, y), (x + w, y + h), (0, 255, 0, 0), thickness=2)
+
                 # Draw image plane error arrow from detection center to image center
-                img_cx, img_cy, det_cx, det_cy, total_err = self._compute_image_plane_err(detection, (img_w, img_h))
-                color = (189, 235, 52)  # Orange, note: GRB format
+                color = (0, 165, 255)  # Orange, note: GRB format  
                 cv2.arrowedLine(m.array, (det_cx, det_cy), (img_cx, img_cy), color, 2, tipLength=0.1)
                 cv2.putText(m.array, f"Err: {total_err}", (det_cx + 5, det_cy - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
                 
@@ -196,13 +206,9 @@ class RPICameraController:
                 cv2.putText(m.array, label, (text_x, text_y),
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
 
-                # Draw detection box
-                cv2.rectangle(m.array, (x, y), (x + w, y + h), (0, 255, 0, 0), thickness=2)
-
-
             if self._intrinsics.preserve_aspect_ratio:
                 b_x, b_y, b_w, b_h = self._imx500_model.get_roi_scaled(request)
-                color = (255, 0, 0)  # Green, note: GRB format
+                color = (255, 0, 0)  
                 cv2.putText(m.array, "ROI", (b_x + 5, b_y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
                 cv2.rectangle(m.array, (b_x, b_y), (b_x + b_w, b_y + b_h), (255, 0, 0, 0))
 
