@@ -4,9 +4,11 @@ from picamera2.devices import IMX500
 from picamera2.devices.imx500 import NetworkIntrinsics
 from typing import List, Optional
 from functools import lru_cache
+from math import sqrt
 import numpy as np
 import os
 import cv2
+
 
 
 class Detection:
@@ -136,15 +138,31 @@ class RPICameraController:
             labels = [label for label in labels if label and label != "-"]
         return labels 
 
+    def _compute_image_plane_err(self, detection: Detection, image_size: tuple[int, int]) -> tuple[int, int, int, int, int]:
+        """Compute the error in the image plane for the given detection."""
+        # Get the image center
+        img_cx, img_cy = image_size[0] // 2, image_size[1] // 2
+
+        # Get the detection center
+        x, y, w, h = detection.box
+        det_cx, det_cy = x + w // 2, y + h // 2
+
+        # Compute the error
+        err_x = det_cx - img_cx
+        err_y = det_cy - img_cy
+        total_err = int(sqrt(err_x**2 + err_y**2))
+
+        return img_cx, img_cy, det_cx, det_cy, total_err
+
     def _draw_detections(self, request: any, detections: List[Detection], stream="main"):
         """Draw the detections for this request onto the ISP output."""
         if detections is None:
             return
         labels = self._get_labels()
-        with MappedArray(request, stream) as m:
+        with MappedArray(request, stream) as m:     # MappedArray for direct access to the image array in the image buffer
             for detection in detections:
                 x, y, w, h = detection.box
-                label = f"{labels[int(detection.category)]} ({detection.conf:.2f})"
+                label = f"{labels[int(detection.category)]} ({detection.confidence:.2f})"
 
                 # Calculate text size and position
                 (text_width, text_height), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
@@ -171,9 +189,14 @@ class RPICameraController:
                 # Draw detection box
                 cv2.rectangle(m.array, (x, y), (x + w, y + h), (0, 255, 0, 0), thickness=2)
 
+                # Draw image plane error arrow from detection center to image center
+                img_cx, img_cy, det_cx, det_cy, total_err = self._compute_image_plane_err(detection, (m.array.shape[1], m.array.shape[0]))
+                cv2.arrowedLine(m.array, (det_cx, det_cy), (img_cx, img_cy), (255, 0, 255), 2, tipLength=0.1)
+                cv2.putText(m.array, f"Err: {total_err}", (det_cx + 5, det_cy - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 1)
+
             if self._intrinsics.preserve_aspect_ratio:
                 b_x, b_y, b_w, b_h = self._imx500_model.get_roi_scaled(request)
-                color = (255, 0, 0)  # red
+                color = (255, 0, 0)  # green
                 cv2.putText(m.array, "ROI", (b_x + 5, b_y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
                 cv2.rectangle(m.array, (b_x, b_y), (b_x + b_w, b_y + b_h), (255, 0, 0, 0))
 
