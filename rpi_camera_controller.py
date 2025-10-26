@@ -3,7 +3,6 @@ from picamera2 import Picamera2
 from picamera2.devices import IMX500
 from picamera2.devices.imx500 import NetworkIntrinsics
 from typing import List, Optional
-from datetime import datetime
 import numpy as np
 import os
 
@@ -89,11 +88,14 @@ class RPICameraController:
         # Determine next run number
         next_run_number = max(run_numbers, default=0) + 1
 
-        # Optionally add a timestamp to make folders easier to browse
-        folder_name = f"run{next_run_number:03d}_{datetime.now():%Y%m%d_%H%M%S}"
+        # Create new run directory
+        folder_name = f"run{next_run_number:03d}"
         run_dir = os.path.join("Outputs", folder_name)
 
         os.makedirs(run_dir)
+
+        # Print new run directory path
+        print(f"Created new run directory: {run_dir}")
 
 
 
