@@ -35,6 +35,7 @@ class RPICameraController:
 
         # Create output directory for this run
         self._run_dir = self._get_new_run_dir()
+        self._image_counter = 0 # Counter for saved images
 
     def _initialize_intrinsics(self) -> NetworkIntrinsics:
         """Initialize and configure network intrinsics."""
@@ -126,19 +127,22 @@ class RPICameraController:
         return Detection(scaled_box, int(category), float(confidence))
 
     def save_image(self, request: any) -> None:
-        """Save the captured image to the run directory."""
+        """Save the captured image to the run directory and keep track of image counter."""
 
-        image_path = os.path.join(self._run_dir, "/image.jpg")
+        image_path = os.path.join(self._run_dir, f"image_{self._image_counter:03d}.jpg")
         request.save("main", image_path)
+        self._image_counter += 1
 
-    def get_inference(self) -> Optional[List[Detection]]:
+    def get_inference(self, save_image: bool = False) -> Optional[List[Detection]]:
         """Run inference and return detections."""
         if self._picam2 is None:
             raise RuntimeError("Camera has not been initialized.")
 
         request = self._picam2.capture_request()
         metadata = request.get_metadata()
-        self.save_image(request)
+
+        if save_image:
+            self.save_image(request)
 
         # Check for valid metadata -> valid image and tensor outputs
         if not metadata:
@@ -168,7 +172,7 @@ if __name__ == "__main__":
 
     try:
         while True:
-            detections = camera_controller.get_inference()
+            detections = camera_controller.get_inference(save_image=True)
             if detections:
                 for det in detections:
                     print(det)
