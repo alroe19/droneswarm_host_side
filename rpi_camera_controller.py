@@ -2,8 +2,9 @@ from __future__ import annotations
 from picamera2 import Picamera2
 from picamera2.devices import IMX500
 from picamera2.devices.imx500 import NetworkIntrinsics
-import numpy as np
 from typing import List, Optional
+import numpy as np
+import os
 
 
 class Detection:
@@ -32,6 +33,9 @@ class RPICameraController:
         self._intrinsics = self._initialize_intrinsics()
         self._setup_camera()
 
+        # Create output directory for this run
+        self._get_new_run_dir()
+
     def _initialize_intrinsics(self) -> NetworkIntrinsics:
         """Initialize and configure network intrinsics."""
         intrinsics = self._imx500_model.network_intrinsics
@@ -54,7 +58,6 @@ class RPICameraController:
 
     def _setup_camera(self) -> None:
         """Configure and start the Picamera2 for inference."""
-        print(self._intrinsics.inference_rate)
         self._picam2 = Picamera2(self._imx500_model.camera_num)
         config = self._picam2.create_preview_configuration(
             main={"format": "BGR888"},  # RGB format. Each pixel is laid out as [R, G, B], contrary to the BGR in the name.
@@ -62,6 +65,36 @@ class RPICameraController:
             buffer_count=12
         )
         self._picam2.start(config, show_preview=False)
+
+    def _get_new_run_dir(self) -> None:
+        # Create base directory if it doesn't exist
+        if not os.path.exists("Outputs"):
+            os.makedirs("Outputs")
+
+        # List all existing subdirectories starting with "run"
+        existing_runs = [
+            d for d in os.listdir("Outputs")
+            if os.path.isdir(os.path.join("Outputs", d)) and d.startswith("run")
+        ]
+
+        # Extract numeric suffixes, e.g. run1 -> 1
+        run_numbers = []
+        for d in existing_runs:
+            try:
+                run_numbers.append(int(d.replace("run", "")))
+            except ValueError:
+                pass
+
+        # Determine next run number
+        next_run_number = max(run_numbers, default=0) + 1
+
+        # Optionally add a timestamp to make folders easier to browse
+        folder_name = f"run{next_run_number:03d}_{datetime.now():%Y%m%d_%H%M%S}"
+        run_dir = os.path.join(base_dir, folder_name)
+
+        os.makedirs(run_dir)
+
+
 
 
     def _parse_detections(self, metadata: dict) -> Optional[List[Detection]]:
