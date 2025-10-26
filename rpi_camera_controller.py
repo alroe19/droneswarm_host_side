@@ -59,6 +59,9 @@ class RPICameraController:
         intrinsics.bbox_normalization = True
         intrinsics.update_with_defaults()
 
+        # Set inference rate
+        intrinsics.inference_rate = 10  # Hz
+
         return intrinsics
 
     def _setup_camera(self) -> None:
@@ -162,6 +165,7 @@ class RPICameraController:
         with MappedArray(request, stream) as m:     # MappedArray for direct access to the image array in the image buffer
             for detection in detections:
                 x, y, w, h = detection.box
+                img_h, img_w = m.array.shape[:2]
                 label = f"{labels[int(detection.category)]} ({detection.confidence:.2f})"
 
                 # Calculate text size and position
@@ -171,6 +175,11 @@ class RPICameraController:
 
                 # Create a copy of the array to draw the background with opacity
                 overlay = m.array.copy()
+
+                # Draw image plane error arrow from detection center to image center
+                img_cx, img_cy, det_cx, det_cy, total_err = self._compute_image_plane_err(detection, (img_w, img_h))
+                cv2.arrowedLine(m.array, (det_cx, det_cy), (img_cx, img_cy), (255, 0, 255), 2, tipLength=0.1)
+                cv2.putText(m.array, f"Err: {total_err}", (det_cx + 5, det_cy - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 1)
 
                 # Draw the background rectangle on the overlay
                 cv2.rectangle(overlay,
@@ -189,10 +198,6 @@ class RPICameraController:
                 # Draw detection box
                 cv2.rectangle(m.array, (x, y), (x + w, y + h), (0, 255, 0, 0), thickness=2)
 
-                # Draw image plane error arrow from detection center to image center
-                img_cx, img_cy, det_cx, det_cy, total_err = self._compute_image_plane_err(detection, (m.array.shape[1], m.array.shape[0]))
-                cv2.arrowedLine(m.array, (det_cx, det_cy), (img_cx, img_cy), (255, 0, 255), 2, tipLength=0.1)
-                cv2.putText(m.array, f"Err: {total_err}", (det_cx + 5, det_cy - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 1)
 
             if self._intrinsics.preserve_aspect_ratio:
                 b_x, b_y, b_w, b_h = self._imx500_model.get_roi_scaled(request)
