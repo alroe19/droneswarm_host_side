@@ -171,7 +171,7 @@ class RPICameraController:
                 img_cx, img_cy, det_cx, det_cy, total_err = self._compute_image_plane_err(detection, (img_w, img_h))
 
                 # Create label with confidence and error
-                label = f"{labels[int(detection.category)]}, conf: {detection.confidence:.2f}, err: {total_err}"
+                label = f"{labels[int(detection.category)]} ({detection.confidence:.2f}) [{total_err}]"
 
                 # Calculate text size and position
                 (text_width, text_height), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
@@ -190,7 +190,6 @@ class RPICameraController:
                 # Draw image plane error arrow from detection center to image center
                 color = (0, 165, 255)  # Orange, note: GRB format  
                 cv2.arrowedLine(m.array, (det_cx, det_cy), (img_cx, img_cy), color, 2, tipLength=0.1)
-                cv2.putText(m.array, f"Err: {total_err}", (det_cx + 5, det_cy - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
                 
                 # Draw the background rectangle on the overlay
                 cv2.rectangle(overlay,
