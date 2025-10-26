@@ -34,7 +34,7 @@ class RPICameraController:
         self._setup_camera()
 
         # Create output directory for this run
-        self._get_new_run_dir()
+        self._run_dir = self._get_new_run_dir()
 
     def _initialize_intrinsics(self) -> NetworkIntrinsics:
         """Initialize and configure network intrinsics."""
@@ -60,13 +60,13 @@ class RPICameraController:
         """Configure and start the Picamera2 for inference."""
         self._picam2 = Picamera2(self._imx500_model.camera_num)
         config = self._picam2.create_preview_configuration(
-            main={"format": "BGR888"},  # RGB format. Each pixel is laid out as [R, G, B], contrary to the BGR in the name.
+            # main={"format": "BGR888"},  # RGB format. Each pixel is laid out as [R, G, B], contrary to the BGR in the name.
             controls={"FrameRate": self._intrinsics.inference_rate},
             buffer_count=12
         )
         self._picam2.start(config, show_preview=False)
 
-    def _get_new_run_dir(self) -> None:
+    def _get_new_run_dir(self) -> str:
         # Create base directory if it doesn't exist
         if not os.path.exists("Outputs"):
             os.makedirs("Outputs")
@@ -94,11 +94,7 @@ class RPICameraController:
 
         os.makedirs(run_dir)
 
-        # Print new run directory path
-        print(f"Created new run directory: {run_dir}")
-
-
-
+        return run_dir
 
     def _parse_detections(self, metadata: dict) -> Optional[List[Detection]]:
         """Parse raw model outputs into Detection objects."""
@@ -124,12 +120,10 @@ class RPICameraController:
 
         return detections
 
-
     def _convert_detection(self, box, confidence, category, metadata) -> Detection:
         """Convert model output into a scaled Detection object."""
         scaled_box = self._imx500_model.convert_inference_coords(box, metadata, self._picam2)
         return Detection(scaled_box, int(category), float(confidence))
-
 
     def get_inference(self) -> Optional[List[Detection]]:
         """Run inference and return detections."""
@@ -138,6 +132,7 @@ class RPICameraController:
 
         request = self._picam2.capture_request()
         metadata = request.get_metadata()
+        request.save("main", "image.jpg")
 
         # Check for valid metadata -> valid image and tensor outputs
         if not metadata:
@@ -147,7 +142,6 @@ class RPICameraController:
         detections = self._parse_detections(metadata)
         request.release()
         return detections
-
 
     def close(self) -> None:
         """Gracefully stop the camera."""
