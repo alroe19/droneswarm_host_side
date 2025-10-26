@@ -1,10 +1,12 @@
 from __future__ import annotations
-from picamera2 import Picamera2
+from picamera2 import Picamera2, MappedArray
 from picamera2.devices import IMX500
 from picamera2.devices.imx500 import NetworkIntrinsics
 from typing import List, Optional
+from functools import lru_cache
 import numpy as np
 import os
+import cv2
 
 
 class Detection:
@@ -126,7 +128,56 @@ class RPICameraController:
         scaled_box = self._imx500_model.convert_inference_coords(box, metadata, self._picam2)
         return Detection(scaled_box, int(category), float(confidence))
 
-    def save_image(self, request: any) -> None:
+    @lru_cache
+    def _get_labels(self):
+        labels = self._intrinsics.labels
+
+        if self._intrinsics.ignore_dash_labels:
+            labels = [label for label in labels if label and label != "-"]
+        return labels 
+
+    def _draw_detections(self, request: any, detections: List[Detection], stream="main"):
+        """Draw the detections for this request onto the ISP output."""
+        if detections is None:
+            return
+        labels = self._get_labels()
+        with MappedArray(request, stream) as m:
+            for detection in detections:
+                x, y, w, h = detection.box
+                label = f"{labels[int(detection.category)]} ({detection.conf:.2f})"
+
+                # Calculate text size and position
+                (text_width, text_height), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
+                text_x = x + 5
+                text_y = y + 15
+
+                # Create a copy of the array to draw the background with opacity
+                overlay = m.array.copy()
+
+                # Draw the background rectangle on the overlay
+                cv2.rectangle(overlay,
+                            (text_x, text_y - text_height),
+                            (text_x + text_width, text_y + baseline),
+                            (255, 255, 255),  # Background color (white)
+                            cv2.FILLED)
+
+                alpha = 0.30
+                cv2.addWeighted(overlay, alpha, m.array, 1 - alpha, 0, m.array)
+
+                # Draw text on top of the background
+                cv2.putText(m.array, label, (text_x, text_y),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+
+                # Draw detection box
+                cv2.rectangle(m.array, (x, y), (x + w, y + h), (0, 255, 0, 0), thickness=2)
+
+            if self._intrinsics.preserve_aspect_ratio:
+                b_x, b_y, b_w, b_h = self._imx500_model.get_roi_scaled(request)
+                color = (255, 0, 0)  # red
+                cv2.putText(m.array, "ROI", (b_x + 5, b_y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+                cv2.rectangle(m.array, (b_x, b_y), (b_x + b_w, b_y + b_h), (255, 0, 0, 0))
+
+    def _save_image(self, request: any) -> None:
         """Save the captured image to the run directory and keep track of image counter."""
 
         image_path = os.path.join(self._run_dir, f"image_{self._image_counter:03d}.jpg")
@@ -141,15 +192,17 @@ class RPICameraController:
         request = self._picam2.capture_request()
         metadata = request.get_metadata()
 
-        if save_image:
-            self.save_image(request)
-
         # Check for valid metadata -> valid image and tensor outputs
         if not metadata:
             request.release()
             return None
 
         detections = self._parse_detections(metadata)
+
+        if save_image:
+            self._draw_detections(request, detections)
+            self._save_image(request)
+
         request.release()
         return detections
 
