@@ -178,9 +178,10 @@ class RPICameraController:
 
                 # Draw image plane error arrow from detection center to image center
                 img_cx, img_cy, det_cx, det_cy, total_err = self._compute_image_plane_err(detection, (img_w, img_h))
-                cv2.arrowedLine(m.array, (det_cx, det_cy), (img_cx, img_cy), (255, 0, 255), 2, tipLength=0.1)
-                cv2.putText(m.array, f"Err: {total_err}", (det_cx + 5, det_cy - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 255), 1)
-
+                color = (189, 235, 52)  # Orange, note: GRB format
+                cv2.arrowedLine(m.array, (det_cx, det_cy), (img_cx, img_cy), color, 2, tipLength=0.1)
+                cv2.putText(m.array, f"Err: {total_err}", (det_cx + 5, det_cy - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+                
                 # Draw the background rectangle on the overlay
                 cv2.rectangle(overlay,
                             (text_x, text_y - text_height),
@@ -201,7 +202,7 @@ class RPICameraController:
 
             if self._intrinsics.preserve_aspect_ratio:
                 b_x, b_y, b_w, b_h = self._imx500_model.get_roi_scaled(request)
-                color = (255, 0, 0)  # green
+                color = (255, 0, 0)  # Green, note: GRB format
                 cv2.putText(m.array, "ROI", (b_x + 5, b_y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
                 cv2.rectangle(m.array, (b_x, b_y), (b_x + b_w, b_y + b_h), (255, 0, 0, 0))
 
