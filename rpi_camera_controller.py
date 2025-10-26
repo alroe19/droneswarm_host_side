@@ -3,13 +3,11 @@ from picamera2 import Picamera2, MappedArray
 from picamera2.devices import IMX500
 from picamera2.devices.imx500 import NetworkIntrinsics
 import numpy as np
-import logging
 
-logging.basicConfig(level=logging.INFO)
 
 class Detection:
     def __init__(self, box, category, conf):
-        self.box = box  # [ymin, xmin, ymax, xmax] normalized
+        self.box = box  
         self.category = category
         self.conf = conf
 
@@ -22,7 +20,6 @@ class RPICameraController:
         self.__intrinsics = self.__imx500_active_model.network_intrinsics
 
         self.__conf_threshold = 0.55 # Confidence threshold
-        self.__max_detections = 3 # Maximum number of detections
 
         # Ensure intrinsics are set
         if not self.__intrinsics:
@@ -39,9 +36,6 @@ class RPICameraController:
         self.__intrinsics.bbox_normalization = True
 
         self.__intrinsics.update_with_defaults()
-
-        logging.info("Model intrinsics:")
-        logging.info(self.__intrinsics)
 
         # Prepare camera after model load
         self.__picam2 = Picamera2(self.__imx500_active_model.camera_num)
@@ -60,22 +54,21 @@ class RPICameraController:
         """Parse the output tensor into a number of detected objects, scaled to the ISP output."""
 
         bbox_normalization = self.__intrinsics.bbox_normalization
-        bbox_order = True
-
 
         np_outputs = self.__imx500_active_model.get_outputs(metadata, add_batch=True)
-        input_w, input_h = self.__imx500_active_model.get_input_size()
+        __, input_h = self.__imx500_active_model.get_input_size()
+        
+        # Check if outputs are valid, if not, return None
         if np_outputs is None:
             return None
 
         boxes, scores, classes = np_outputs[0][0], np_outputs[1][0], np_outputs[2][0]
         if bbox_normalization:
             boxes = boxes / input_h
-        
-        if True:
-            boxes = boxes[:, [1, 0, 3, 2]]
-        boxes = np.array_split(boxes, 4, axis=1)
-        boxes = zip(*boxes)
+
+        boxes = boxes[:, [1, 0, 3, 2]]    # Converts format to [x, y, w, h]
+        boxes = np.array_split(boxes, 4, axis=1) # Split into 4 separate arrays
+        boxes = zip(*boxes) # Unzip into list of boxes
 
         detections = [
             self.__convert_detection(box, score, category, metadata)
@@ -84,6 +77,7 @@ class RPICameraController:
         ]
 
         return detections
+
 
     def __convert_detection(self, box, conf, category, metadata):
         """Convert raw detection to Detection object with scaled box coordinates."""
