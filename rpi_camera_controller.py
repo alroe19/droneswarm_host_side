@@ -227,7 +227,10 @@ class RPICameraController:
         
         request = self._picam2.capture_request()
         metadata = request.get_metadata()
-        print("Metadata:", metadata)        
+        tensor = self._imx500_model.get_outputs(metadata, add_batch=True)
+        if tensor is None:
+            print("Tensor None")
+            return False        
 
     def get_inference(self, save_image: bool = False) -> Optional[List[Detection]]:
         """Run inference and return detections."""
@@ -276,7 +279,7 @@ if __name__ == "__main__":
             #         print(det)
 
             camera_controller.is_camera_ready()
-            
+
     except KeyboardInterrupt:
         print("\nExiting gracefully...")
     finally:
