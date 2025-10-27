@@ -218,6 +218,17 @@ class RPICameraController:
         request.save("main", image_path)
         self._image_counter += 1
 
+    def is_camera_ready(self) -> bool:
+        """Check if the model is loaded and the camera are producing frames and inference outputs."""
+
+        # Check if camera is initialized
+        if self._picam2 is None:
+            return False
+        
+        request = self._picam2.capture_request()
+        metadata = request.get_metadata()
+        print("Metadata:", metadata)        
+
     def get_inference(self, save_image: bool = False) -> Optional[List[Detection]]:
         """Run inference and return detections."""
         if self._picam2 is None:
@@ -259,10 +270,13 @@ if __name__ == "__main__":
 
     try:
         while True:
-            detections = camera_controller.get_inference(save_image=True)
-            if detections:
-                for det in detections:
-                    print(det)
+            # detections = camera_controller.get_inference(save_image=True)
+            # if detections:
+            #     for det in detections:
+            #         print(det)
+
+            camera_controller.is_camera_ready()
+            
     except KeyboardInterrupt:
         print("\nExiting gracefully...")
     finally:
