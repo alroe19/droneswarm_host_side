@@ -1,11 +1,11 @@
 
 import socket
-import threading
+
 
 
 class TCPClient:
-    def __init__(self, server="localhost", port=5050):
-        self._server = server
+    def __init__(self, host="localhost", port=5050):
+        self._host = host
         self._port = port
         self._client_socket = None
         self._connected = False
@@ -16,13 +16,11 @@ class TCPClient:
     def connect(self):
         """ Connect to the TCP server """
         if self._connected:
-            print("Already connected to the server.")
             return
 
         self._client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self._client_socket.connect((self.__host, self.__port))
+        self._client_socket.connect((self._host, self._port))
         self._connected = True
-        print(f"Connected to server at {self.__host}:{self.__port}")
 
 
     def send(self, msg):
@@ -43,7 +41,6 @@ class TCPClient:
         if self._connected:
             self._client_socket.close()
             self._connected = False
-            print("Disconnected from server.")
 
 
 if __name__ == "__main__":

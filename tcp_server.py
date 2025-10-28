@@ -1,38 +1,56 @@
 import socket
 
 
-HOST = "localhost"
-PORT = 5050
-SERVER_ADDR = (HOST, PORT)
-FORMAT = 'utf-8'
-HEADER_SIZE = 64
 
+class TCPServer:
+    def __init__(self, host="localhost", port=5050):
+        self._host = host
+        self._port = port
+        self._server_socket = None
+        self._connected = False
 
-def node():
-    
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
+        self._header_size = 64  # Size of the header indicating message length
+        self._format = 'utf-8'  # Encoding format
 
-        server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) # Allow to reuse the same address and port immediately after the program is closed
-        server.bind(SERVER_ADDR) # Bind the socket to the address
-        server.listen(1) # Start listening for incomming connections and only 1 pending connection allowed
-        print(f"[LISTENING] Server is listening on {HOST}:{PORT}")
+    def connect(self):
+        """ Start the TCP server and wait for client to connect """
+        if self._connected:
+            return
 
-        # wait for a connection host side node and accept it
-        conn, addr = server.accept()
-        print(f"[NEW CONNECTION] {addr} connected.")
+        self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # Allow to reuse the same address and port immediately after the program is closed. Otherwise, you may get "Address already in use" error.
+        self._server_socket.bind((self._host, self._port))
+        self._server_socket.listen(1)  # Listen for incoming connections
+        print(f"Server listening on {self._host}:{self._port}")
 
+        self._client_socket, addr = self._server_socket.accept()
+        print(f"Connection accepted from {addr}")
+        self._connected = True
 
-        try:
-            while True:
-                msg_length = conn.recv(HEADER_SIZE).decode(FORMAT)
-                if msg_length:
-                    msg_length = int(msg_length)
-                    msg = conn.recv(msg_length).decode(FORMAT)
+    def receive(self):
+        """ Receive a message from the TCP client. This is a blocking method. """
+        if not self._connected:
+            raise ConnectionError("No client is connected.")
 
-                    print(f"[RECEIVED FROM {addr}] {msg}")
+        len_header = self._client_socket.recv(self._header_size).decode(self._format)
+        if len_header:
+            msg_length = int(len_header)
+            msg = self._client_socket.recv(msg_length).decode(self._format)
+            return msg
+        return None
 
-        finally:
-            conn.close()
+    def __del__(self):
+        if self._connected:
+            self._client_socket.close()
+            self._server_socket.close()
+            self._connected = False
+            print("Server closed.")
+
 
 if __name__ == "__main__":
-    node()
+    # Test script
+    server = TCPServer()
+    server.connect()
+    print("Waiting to receive message...")
+    message = server.receive()
+    print(f"Received message: {message}")
