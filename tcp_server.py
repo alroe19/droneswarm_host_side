@@ -6,7 +6,7 @@ PORT = 5050
 SERVER_ADDR = (HOST, PORT)
 FORMAT = 'utf-8'
 HEADER_SIZE = 64
-DISCONNECT_MESSAGE = "!DISCONNECT"
+
 
 def node():
     
@@ -28,10 +28,6 @@ def node():
                 if msg_length:
                     msg_length = int(msg_length)
                     msg = conn.recv(msg_length).decode(FORMAT)
-
-                    if msg == DISCONNECT_MESSAGE:
-                        print(f"[DISCONNECTED] {addr} disconnected.")
-                        break
 
                     print(f"[RECEIVED FROM {addr}] {msg}")
 

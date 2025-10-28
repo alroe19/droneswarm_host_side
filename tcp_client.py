@@ -12,7 +12,6 @@ class TCPClient:
 
         self._header_size = 64  # Size of the header indicating message length
         self._format = 'utf-8'  # Encoding format
-        self._disconnect_message = "!DISCONNECT"  # Message to signal disconnection
 
     def connect(self):
         """ Connect to the TCP server """
@@ -27,4 +26,28 @@ class TCPClient:
 
 
     def send(self, msg):
-        pass
+        """ Send a message to the TCP server """
+        if not self._connected:
+            raise ConnectionError("Not connected to the server.")
+
+        msg_encoded = msg.encode(self._format)  # Encoded message
+        msg_length = len(msg_encoded) # Length of the encoded message
+        len_header = str(msg_length).encode(self._format) # Message represents the length of the message
+        len_header += b' ' * (self._header_size - len(len_header))  # Padding the header to a fixed size of self._header_size
+
+        # Send the header and the message
+        self._client_socket.sendall(len_header)
+        self._client_socket.sendall(msg_encoded)
+
+    def __del__(self):
+        if self._connected:
+            self._client_socket.close()
+            self._connected = False
+            print("Disconnected from server.")
+
+
+if __name__ == "__main__":
+    # Test script
+    client = TCPClient()
+    client.connect()
+    client.send("Hello, Server!")
