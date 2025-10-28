@@ -1,7 +1,5 @@
 import socket
 
-
-
 class TCPServer:
     def __init__(self, host="localhost", port=5050):
         self._host = host
@@ -21,10 +19,8 @@ class TCPServer:
         self._server_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)  # Allow to reuse the same address and port immediately after the program is closed. Otherwise, you may get "Address already in use" error.
         self._server_socket.bind((self._host, self._port))
         self._server_socket.listen(1)  # Listen for incoming connections
-        print(f"Server listening on {self._host}:{self._port}")
 
         self._client_socket, addr = self._server_socket.accept()
-        print(f"Connection accepted from {addr}")
         self._connected = True
 
     def receive(self):
@@ -44,7 +40,6 @@ class TCPServer:
             self._client_socket.close()
             self._server_socket.close()
             self._connected = False
-            print("Server closed.")
 
 
 if __name__ == "__main__":
