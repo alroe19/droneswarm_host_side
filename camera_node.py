@@ -38,14 +38,7 @@ def camera_node():
             # This can cause problems if multiple objects are detected, which can get the detection to flicker between them.
             # The detection object contains bbox, category, confidence attributes which is converted to a dictionary and sent as a JSON string.
             if detections:
-                detection_dict = [
-                    {
-                        "bbox": det.box.tolist(),
-                        "category": det.category,
-                        "confidence": det.confidence,
-                    }
-                    for det in detections[0]
-                ]
+                detection_dict = detections[0].__dict__
 
                 tcp_client.send(json.dumps(detection_dict))
 

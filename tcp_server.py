@@ -52,5 +52,6 @@ if __name__ == "__main__":
     server = TCPServer()
     server.connect()
     print("Waiting to receive message...")
-    message = json.loads(server.receive())
-    print(f"Received message: {message}")
+    while True:
+        message = json.loads(server.receive())
+        print(f"Received message: {message}")
