@@ -17,7 +17,7 @@ class TCPClient:
         if self._connected:
             return
 
-        self._client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM) # Creates a TCP socket
         self._client_socket.connect((self._host, self._port))
         self._connected = True
 
