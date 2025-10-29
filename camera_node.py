@@ -1,4 +1,5 @@
-from sympy import det
+#!/usr/bin/env python3
+
 from rpi_camera_controller import RPICameraController, Detection
 from tcp_client import TCPClient
 import json

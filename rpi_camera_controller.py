@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+
 from __future__ import annotations
 from picamera2 import Picamera2, MappedArray
 from picamera2.devices import IMX500

@@ -1,6 +1,8 @@
+#!/usr/bin/env python3
 
-import socket
 from __future__ import annotations
+import socket
+
 
 class TCPClient:
     def __init__(self, host="localhost", port=5050) -> None:

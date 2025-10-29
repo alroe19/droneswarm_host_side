@@ -1,6 +1,9 @@
+#!/usr/bin/env python3
+
+from __future__ import annotations
 import socket
 import json
-from __future__ import annotations
+
 
 class TCPServer:
     def __init__(self, host="localhost", port=5050) -> None:
