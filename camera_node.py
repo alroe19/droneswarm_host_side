@@ -1,7 +1,5 @@
-
 from rpi_camera_controller import RPiCameraController
 from tcp_client import TCPClient
-
 
 
 def camera_node():
