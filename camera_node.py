@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 
+import os
 from rpi_camera_controller import RPICameraController, Detection
 from tcp_client import TCPClient
 import json
@@ -7,10 +8,13 @@ import json
 
 def camera_node():
 
-    model_path = "~/models/network.rpk"
-    labels_path = "~/models/labels.txt"
-    img_base_path = "~/"
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+
+    model_path = script_dir + "/models/network.rpk"
+    labels_path = script_dir + "/models/labels.txt"
+    img_base_path = script_dir
     confidence_threshold = 0.6
+    inference_rate = 10 # How many inferences per second but also the cameras frame rate
     save_images = True
 
     host = "localhost"
@@ -22,10 +26,11 @@ def camera_node():
     img_save_interval = 9 # Save an image every 10 frames (0-9)
 
     camera_controller = RPICameraController(
-        model_path=model_path,
-        labels_path=labels_path,
-        img_base_path=img_base_path,
-        conf_threshold=confidence_threshold,
+        model_path = model_path,
+        labels_path = labels_path,
+        img_base_path = img_base_path,
+        conf_threshold = confidence_threshold,
+        inference_rate = inference_rate  
     )
 
     frame_count = 0

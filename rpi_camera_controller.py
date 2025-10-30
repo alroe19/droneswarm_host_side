@@ -13,6 +13,7 @@ import cv2
 
 
 
+
 class Detection:
     """Represents a single object detection result."""
 
@@ -28,11 +29,12 @@ class Detection:
 class RPICameraController:
     """Handles IMX500 model loading, camera setup, and inference processing."""
 
-    def __init__(self, model_path: str, labels_path: str, img_base_path: str, conf_threshold: float = 0.55) -> None:
+    def __init__(self, model_path: str, labels_path: str, img_base_path: str, conf_threshold: float = 0.55, inference_rate: int = 10) -> None:
         """Initialize the Raspberry Pi camera and model."""
         self._model_path = model_path
         self._labels_path = labels_path
         self._conf_threshold = conf_threshold
+        self._inference_rate = inference_rate
 
         self._picam2: Optional[Picamera2] = None
         self._imx500_model = IMX500(model_path)
@@ -51,7 +53,7 @@ class RPICameraController:
             intrinsics = NetworkIntrinsics()
             intrinsics.task = "object detection"
         elif intrinsics.task != "object detection":
-            print("Network is not an object detection task", file=sys.stderr)
+            print("Network is not an object detection task")
             exit()
 
         # Load labels
@@ -59,11 +61,11 @@ class RPICameraController:
             intrinsics.labels = f.read().splitlines()
 
         # Apply default settings
-        intrinsics.bbox_normalization = True
+        intrinsics.bbox_normalization = True 
         intrinsics.update_with_defaults()
 
         # Set inference rate
-        intrinsics.inference_rate = 10  # Hz
+        intrinsics.inference_rate = self._inference_rate  # Hz
 
         return intrinsics
 
