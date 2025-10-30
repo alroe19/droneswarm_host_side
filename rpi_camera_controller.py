@@ -28,7 +28,7 @@ class Detection:
 class RPICameraController:
     """Handles IMX500 model loading, camera setup, and inference processing."""
 
-    def __init__(self, model_path: str, labels_path: str, conf_threshold: float = 0.55) -> None:
+    def __init__(self, model_path: str, labels_path: str, img_base_path: str, conf_threshold: float = 0.55) -> None:
         """Initialize the Raspberry Pi camera and model."""
         self._model_path = model_path
         self._labels_path = labels_path
@@ -40,6 +40,7 @@ class RPICameraController:
         self._setup_camera()
 
         # Create output directory for this run
+        self._img_base_path = img_base_path
         self._run_dir = self._get_new_run_dir()
         self._image_counter = 0 # Counter for saved images
 
@@ -78,13 +79,13 @@ class RPICameraController:
 
     def _get_new_run_dir(self) -> str:
         # Create base directory if it doesn't exist
-        if not os.path.exists("Outputs"):
-            os.makedirs("Outputs")
+        if not os.path.exists(self._img_base_path + "/Outputs"):
+            os.makedirs(self._img_base_path + "/Outputs")
 
         # List all existing subdirectories starting with "run"
         existing_runs = [
-            d for d in os.listdir("Outputs")
-            if os.path.isdir(os.path.join("Outputs", d)) and d.startswith("run")
+            d for d in os.listdir(self._img_base_path + "/Outputs")
+            if os.path.isdir(os.path.join(self._img_base_path + "/Outputs", d)) and d.startswith("run")
         ]
 
         # Extract numeric suffixes, e.g. run1 -> 1
@@ -100,7 +101,7 @@ class RPICameraController:
 
         # Create new run directory
         folder_name = f"run{next_run_number:03d}"
-        run_dir = os.path.join("Outputs", folder_name)
+        run_dir = os.path.join(self._img_base_path,"/Outputs/", folder_name)
 
         os.makedirs(run_dir)
 
