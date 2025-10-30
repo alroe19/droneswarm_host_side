@@ -7,8 +7,9 @@ import json
 
 def camera_node():
 
-    model_path = "./models/network.rpk"
-    labels_path = "./models/labels.txt"
+    model_path = "~/models/network.rpk"
+    labels_path = "~/models/labels.txt"
+    img_base_path = "~/"
     confidence_threshold = 0.6
     save_images = True
 
@@ -23,6 +24,7 @@ def camera_node():
     camera_controller = RPICameraController(
         model_path=model_path,
         labels_path=labels_path,
+        img_base_path=img_base_path,
         conf_threshold=confidence_threshold,
     )
 
