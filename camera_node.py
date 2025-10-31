@@ -5,9 +5,6 @@ from rpi_camera_controller import RPICameraController, Detection
 from tcp_client import TCPClient
 import json
 
-# TODO: Jeg tror jeg har fået opdateret klassen, men tjek lige efter. Og Dectection klassen er opdateret så den har err_x og err_y attributter
-# hvilket der skal tages højde for her måske. men tjek lige efter
-
 def camera_node():
 
     script_dir = os.path.dirname(os.path.abspath(__file__))

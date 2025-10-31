@@ -65,7 +65,7 @@ class RPICameraController:
         self._img_base_path = img_base_path
         self._run_dir = self._get_new_run_dir()
         self._image_counter = 0 # Counter for saved images
-        self._img_size = self._picam2.stream_configuration("main").size
+        self._img_size = self._picam2.preview_configuration.main.size
 
     def _initialize_intrinsics(self) -> NetworkIntrinsics:
         """Initialize and configure network intrinsics."""
