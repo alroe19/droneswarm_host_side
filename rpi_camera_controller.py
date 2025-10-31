@@ -12,8 +12,6 @@ import os
 import cv2
 
 
-
-
 class Detection:
     """Represents a single object detection result."""
 
@@ -21,9 +19,31 @@ class Detection:
         self.box = box
         self.category = category
         self.confidence = confidence
+        self.err_x: int = None
+        self.err_y: int = None
 
     def __repr__(self) -> str:
-        return f"Detection(box={self.box}, category={self.category}, confidence={self.confidence:.2f})"
+        return f"Detection(box={self.box}, category={self.category}, confidence={self.confidence:.2f}, err_x={self.err_x}, err_y={self.err_y})"
+
+    def bbox_center(self) -> tuple[float, float]:
+        """Calculate the center of the bounding box."""
+        x, y, w, h = self.box
+        center_x = x + w // 2
+        center_y = y + h // 2
+        return (center_x, center_y)
+
+    def _compute_image_plane_err(self, image_size: tuple[int, int]):
+        """Compute the error in the image plane for the detection."""
+        # Get the image center
+        img_cx, img_cy = image_size[0] // 2, image_size[1] // 2
+
+        # Get the detection center
+        x, y, w, h = self.box
+        det_cx, det_cy = x + w // 2, y + h // 2
+
+        # Compute the error
+        self.err_x = det_cx - img_cx
+        self.err_y = det_cy - img_cy
 
 
 class RPICameraController:
@@ -45,6 +65,7 @@ class RPICameraController:
         self._img_base_path = img_base_path
         self._run_dir = self._get_new_run_dir()
         self._image_counter = 0 # Counter for saved images
+        self._img_size = self._picam2.stream_configuration("main").size
 
     def _initialize_intrinsics(self) -> NetworkIntrinsics:
         """Initialize and configure network intrinsics."""
@@ -103,7 +124,7 @@ class RPICameraController:
 
         # Create new run directory
         folder_name = f"run{next_run_number:03d}"
-        run_dir = os.path.join(self._img_base_path,"/Outputs/", folder_name)
+        run_dir = os.path.join(self._img_base_path, "Outputs", folder_name)
 
         os.makedirs(run_dir)
 
@@ -138,6 +159,14 @@ class RPICameraController:
         scaled_box = self._imx500_model.convert_inference_coords(box, metadata, self._picam2)
         return Detection(scaled_box, int(category), float(confidence))
 
+    def _compute_detection_errors(self, detection: List[Detection]) -> List[Detection]:
+        """Compute image plane errors for each detection."""
+
+        for det in detection:
+            det._compute_image_plane_err(self._img_size)
+
+        return detection
+
     @lru_cache
     def _get_labels(self):
         labels = self._intrinsics.labels
@@ -145,22 +174,6 @@ class RPICameraController:
         if self._intrinsics.ignore_dash_labels:
             labels = [label for label in labels if label and label != "-"]
         return labels 
-
-    def _compute_image_plane_err(self, detection: Detection, image_size: tuple[int, int]) -> tuple[int, int, int, int, int]:
-        """Compute the error in the image plane for the given detection."""
-        # Get the image center
-        img_cx, img_cy = image_size[0] // 2, image_size[1] // 2
-
-        # Get the detection center
-        x, y, w, h = detection.box
-        det_cx, det_cy = x + w // 2, y + h // 2
-
-        # Compute the error
-        err_x = det_cx - img_cx
-        err_y = det_cy - img_cy
-        total_err = int(sqrt(err_x**2 + err_y**2))
-
-        return img_cx, img_cy, det_cx, det_cy, total_err
 
     def _draw_detections(self, request: any, detections: List[Detection], stream="main"):
         """Draw the detections for this request onto the ISP output."""
@@ -170,10 +183,11 @@ class RPICameraController:
         with MappedArray(request, stream) as m:     # MappedArray for direct access to the image array in the image buffer
             for detection in detections:
                 x, y, w, h = detection.box
-                img_h, img_w = m.array.shape[:2]
+                img_cx, img_cy = self._img_size[0] // 2, self._img_size[1] // 2
+                det_cx, det_cy = x + w // 2, y + h // 2
 
-                # Compute image plane error
-                img_cx, img_cy, det_cx, det_cy, total_err = self._compute_image_plane_err(detection, (img_w, img_h))
+                # Compute total error for labeling
+                total_err = int(sqrt(detection.err_x**2 + detection.err_y**2))
 
                 # Create label with confidence and error
                 label = f"{labels[int(detection.category)]} ({detection.confidence:.2f}) [{total_err}]"
@@ -237,6 +251,7 @@ class RPICameraController:
             return None
 
         detections = self._parse_detections(metadata)
+        detections = self._compute_detection_errors(detections)
 
         if save_image:
             self._draw_detections(request, detections)

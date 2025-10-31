@@ -5,6 +5,8 @@ from rpi_camera_controller import RPICameraController, Detection
 from tcp_client import TCPClient
 import json
 
+# TODO: Jeg tror jeg har fået opdateret klassen, men tjek lige efter. Og Dectection klassen er opdateret så den har err_x og err_y attributter
+# hvilket der skal tages højde for her måske. men tjek lige efter
 
 def camera_node():
 
@@ -15,6 +17,7 @@ def camera_node():
     img_base_path = script_dir
     confidence_threshold = 0.6
     inference_rate = 10 # How many inferences per second but also the cameras frame rate
+    img_save_interval = 9 # Save an image every 10 frames (0-9)
     save_images = True
 
     host = "localhost"
@@ -23,7 +26,7 @@ def camera_node():
     tcp_client = TCPClient(host=host, port=port)
     tcp_client.connect()
 
-    img_save_interval = 9 # Save an image every 10 frames (0-9)
+    
 
     camera_controller = RPICameraController(
         model_path = model_path,
