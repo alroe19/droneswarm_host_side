@@ -15,7 +15,8 @@ import cv2
 class Detection:
     """Represents a single object detection result."""
 
-    def __init__(self, box: np.ndarray, category: int, confidence: float) -> None:
+    def __init__(self, valid: bool, box: np.ndarray, category: int, confidence: float) -> None:
+        self.valid = valid
         self.box = box
         self.category = category
         self.confidence = confidence
@@ -23,7 +24,7 @@ class Detection:
         self.err_y: int = None
 
     def __repr__(self) -> str:
-        return f"Detection(box={self.box}, category={self.category}, confidence={self.confidence:.2f}, err_x={self.err_x}, err_y={self.err_y})"
+        return f"Detection(valid={self.valid}, box={self.box}, category={self.category}, confidence={self.confidence:.2f}, err_x={self.err_x}, err_y={self.err_y})"
 
     def bbox_center(self) -> tuple[float, float]:
         """Calculate the center of the bounding box."""
@@ -155,9 +156,9 @@ class RPICameraController:
         return detections
 
     def _convert_detection(self, box, confidence, category, metadata) -> Detection:
-        """Convert model output into a scaled Detection object."""
+        """Convert model output into a scaled Detection object and only if there is a valid detection."""
         scaled_box = self._imx500_model.convert_inference_coords(box, metadata, self._picam2)
-        return Detection(scaled_box, int(category), float(confidence))
+        return Detection(True, scaled_box, int(category), float(confidence))
 
     def _compute_detection_errors(self, detection: List[Detection]) -> List[Detection]:
         """Compute image plane errors for each detection."""
@@ -256,6 +257,10 @@ class RPICameraController:
         if save_image:
             self._draw_detections(request, detections)
             self._save_image(request)
+        
+        # Check if there are no valid detections and if so, create an empty detection with valid=False
+        if not detections:
+            detections.append(Detection(False, np.array([0, 0, 0, 0]), 0, 0.0))
 
         request.release()
         return detections
@@ -288,3 +293,10 @@ if __name__ == "__main__":
         print("\nExiting gracefully...")
     finally:
         camera_controller.close()
+
+
+# TODO: 
+# Tjek outputtet fra modellen og se hvad outputtet er når der ikke er noget objekt i billedet.
+# Hvis muligt, så tilføj bool til Detection class for at indikere om der findes et objekt i billedet eller ej.
+# Integrer med resten af camera klassen, camera node og receiver node i ros
+# Tjek at ændingen virker som det skal.

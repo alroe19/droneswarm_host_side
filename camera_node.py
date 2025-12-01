@@ -46,7 +46,7 @@ def camera_node():
             # The detection object contains bbox, category, confidence attributes which is converted to a dictionary and sent as a JSON string.
             if detections:
                 detection_dict = detections[0].__dict__
-
+                print(detection_dict)
                 tcp_client.send(json.dumps(detection_dict))
 
     except KeyboardInterrupt:
