@@ -15,7 +15,7 @@ import cv2
 class Detection:
     """Represents a single object detection result."""
 
-    def __init__(self, valid: bool, box: np.ndarray, category: int, confidence: float) -> None:
+    def __init__(self, valid: bool, box: tuple[int, int, int, int], category: int, confidence: float) -> None:
         self.valid = valid
         self.box = box
         self.category = category
@@ -157,7 +157,7 @@ class RPICameraController:
 
     def _convert_detection(self, box, confidence, category, metadata) -> Detection:
         """Convert model output into a scaled Detection object and only if there is a valid detection."""
-        scaled_box = self._imx500_model.convert_inference_coords(box, metadata, self._picam2)
+        scaled_box = self._imx500_model.convert_inference_coords(box, metadata, self._picam2) # Scale box to image size and also convert array to tuple
         return Detection(True, scaled_box, int(category), float(confidence))
 
     def _compute_detection_errors(self, detection: List[Detection]) -> List[Detection]:
@@ -260,7 +260,7 @@ class RPICameraController:
         
         # Check if there are no valid detections and if so, create an empty detection with valid=False
         if not detections:
-            detections.append(Detection(False, np.array([0, 0, 0, 0]), 0, 0.0))
+            detections.append(Detection(False, (0, 0, 0, 0), 0, 0.0))
 
         request.release()
         return detections
