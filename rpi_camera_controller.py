@@ -261,6 +261,8 @@ class RPICameraController:
         # Check if there are no valid detections and if so, create an empty detection with valid=False
         if not detections:
             detections.append(Detection(False, (0, 0, 0, 0), 0, 0.0))
+            detections[0].err_x = 0 # Set errors to 0 because they have to be ints at the receiving end
+            detections[0].err_y = 0
 
         request.release()
         return detections
