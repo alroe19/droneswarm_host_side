@@ -5,6 +5,8 @@
 
 set -e  # Stop the script if any command fails
 
+apt install python3-pip
+
 apt update
 apt full-upgrade -y
 apt install -y python3-picamera2 --no-install-recommends
