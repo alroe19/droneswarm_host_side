@@ -4,7 +4,7 @@
 # Run this script with: ./install_dependencies.sh
 
 apt update
-apt install full-upgrade -y
+apt full-upgrade -y
 apt install -y python3-picamera2 --no-install-recommends
 apt install install imx500-all
 
