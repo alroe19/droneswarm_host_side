@@ -1,0 +1,2 @@
+nupmy
+cv2
