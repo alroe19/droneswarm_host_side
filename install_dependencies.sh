@@ -3,6 +3,8 @@
 # Make this file executable with: chmod +x install_dependencies.sh (just has to be done once)
 # Run this script with: ./install_dependencies.sh
 
+set -e  # Stop the script if any command fails
+
 apt update
 apt full-upgrade -y
 apt install -y python3-picamera2 --no-install-recommends
