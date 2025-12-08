@@ -3,3 +3,9 @@
 # Make this file executable with: chmod +x install_dependencies.sh (just has to be done once)
 # Run this script with: ./install_dependencies.sh
 
+apt update
+apt install full-upgrade -y
+apt install -y python3-picamera2 --no-install-recommends
+apt install install imx500-all
+
+python3 -m pip install -r requirements.txt
