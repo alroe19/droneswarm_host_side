@@ -10,6 +10,6 @@ apt install python3-pip -y
 apt update -y
 apt full-upgrade -y
 apt install -y python3-picamera2 --no-install-recommends
-apt install install imx500-all -y
+apt install imx500-all -y
 
 python3 -m pip install -r requirements.txt -y
