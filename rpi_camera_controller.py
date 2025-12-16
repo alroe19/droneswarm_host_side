@@ -299,20 +299,20 @@ class RPICameraController:
         request.release()
         return detections
 
-def close(self) -> None:
-    """Gracefully stop the camera and close log file."""
-    if self._log_file:
-        try:
-            self._log_file.flush()
-            os.fsync(self._log_file.fileno())
-        except Exception:
-            pass
-        self._log_file.close()
-        self._log_file = None
+    def close(self) -> None:
+        """Gracefully stop the camera and close log file."""
+        if self._log_file:
+            try:
+                self._log_file.flush()
+                os.fsync(self._log_file.fileno())
+            except Exception:
+                pass
+            self._log_file.close()
+            self._log_file = None
 
-    if self._picam2:
-        self._picam2.stop()
-        self._picam2 = None
+        if self._picam2:
+            self._picam2.stop()
+            self._picam2 = None
 
 
     def __del__(self) -> None:
