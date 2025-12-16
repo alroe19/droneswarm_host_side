@@ -198,11 +198,8 @@ class RPICameraController:
                 img_cx, img_cy = self._img_size[0] // 2, self._img_size[1] // 2
                 det_cx, det_cy = x + w // 2, y + h // 2
 
-                # Compute total error for labeling
-                total_err = int(sqrt(detection.err_x**2 + detection.err_y**2))
-
                 # Create label with confidence and error
-                label = f"{labels[int(detection.category)]} ({detection.confidence:.2f}) [{total_err}]"
+                label = f"{labels[int(detection.category)]} ({detection.confidence:.2f})"
 
                 # Calculate text size and position
                 (text_width, text_height), baseline = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, 0.5, 1)
@@ -327,7 +324,7 @@ if __name__ == "__main__":
     model_path = script_dir + "/models/network.rpk"
     labels_path = script_dir + "/models/labels.txt"
     img_base_path = script_dir
-    confidence_threshold = 0.2
+    confidence_threshold = 0.1
     inference_rate = 10 # How many inferences per second but also the cameras frame rate
 
     camera_controller = RPICameraController(
