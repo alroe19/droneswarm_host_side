@@ -285,7 +285,7 @@ class RPICameraController:
             for det in detections:
                 record = {
                     "timestamp": timestamp,
-                    **det.to_dict(),
+                    **det.__dict__,
                 }
                 self._log_file.write(json.dumps(record) + "\n")
 
