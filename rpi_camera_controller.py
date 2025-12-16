@@ -218,9 +218,11 @@ class RPICameraController:
                 # Draw bounding box for detection
                 cv2.rectangle(m.array, (x, y), (x + w, y + h), (0, 255, 0, 0), thickness=2)
 
-                # Draw image plane error arrow from detection center to image center
+                # Draw image plane error arrows in the x and y direction
                 color = (0, 165, 255)  # Orange, note: GRB format  
-                cv2.arrowedLine(m.array, (det_cx, det_cy), (img_cx, img_cy), color, 2, tipLength=0.1)
+                cv2.arrowedLine(m.array, (det_cx, det_cy), (img_cx, det_cy), color, 2, tipLength=0.1) # err_x term
+                cv2.arrowedLine(m.array, (det_cx, det_cy), (det_cx, img_cy), color, 2, tipLength=0.1) # err_y term
+                # cv2.arrowedLine(m.array, (det_cx, det_cy), (img_cx, img_cy), color, 2, tipLength=0.1)
                 
                 # Draw the background rectangle on the overlay
                 cv2.rectangle(overlay,
@@ -267,6 +269,7 @@ class RPICameraController:
         detections = self._compute_detection_errors(detections)
 
         if save_image:
+            # Save image with drawings
             self._draw_detections(request, detections)
             self._save_image(request, timestamp)
         
@@ -276,21 +279,22 @@ class RPICameraController:
             detections[0].err_x = 0 # Set errors to 0 because they have to be ints at the receiving end
             detections[0].err_y = 0
 
-        # Log detections to datadump file
 
-        for det in detections:
-            record = {
-                "timestamp": timestamp,
-                **det.to_dict(),
-            }
-            self._log_file.write(json.dumps(record) + "\n")
+        if save_image:
+            # Log detections to datadump file
+            for det in detections:
+                record = {
+                    "timestamp": timestamp,
+                    **det.to_dict(),
+                }
+                self._log_file.write(json.dumps(record) + "\n")
 
-        # Periodic fsync
-        now = time.time()
-        if now - self._last_fsync >= self._fsync_interval:
-            self._log_file.flush()
-            os.fsync(self._log_file.fileno())
-            self._last_fsync = now
+            # Periodic fsync
+            now = time.time()
+            if now - self._last_fsync >= self._fsync_interval:
+                self._log_file.flush()
+                os.fsync(self._log_file.fileno())
+                self._last_fsync = now
 
         request.release()
         return detections
@@ -317,10 +321,22 @@ def close(self) -> None:
 
 
 if __name__ == "__main__":
-    model_path = "./models/network.rpk"
-    labels_path = "./models/labels.txt"
 
-    camera_controller = RPICameraController(model_path, labels_path)
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+
+    model_path = script_dir + "/models/network.rpk"
+    labels_path = script_dir + "/models/labels.txt"
+    img_base_path = script_dir
+    confidence_threshold = 0.2
+    inference_rate = 10 # How many inferences per second but also the cameras frame rate
+
+    camera_controller = RPICameraController(
+        model_path = model_path,
+        labels_path = labels_path,
+        img_base_path = img_base_path,
+        conf_threshold = confidence_threshold,
+        inference_rate = inference_rate  
+    )
 
     try:
         while True:
