@@ -10,6 +10,9 @@ from math import sqrt
 import numpy as np
 import os
 import cv2
+import json
+import time
+
 
 
 class Detection:
@@ -64,9 +67,14 @@ class RPICameraController:
 
         # Create output directory for this run
         self._img_base_path = img_base_path
-        self._run_dir = self._get_new_run_dir()
-        self._image_counter = 0 # Counter for saved images
+        self._run_dir, self._datadump_file_path = self._get_new_run_dir()
         self._img_size = self._picam2.preview_configuration.main.size
+
+        # Create datadump file
+        self._log_file = open(self._datadump_file_path, "a", buffering=1)
+        self._last_fsync = time.time()
+        self._fsync_interval = 1.0  # seconds 
+
 
     def _initialize_intrinsics(self) -> NetworkIntrinsics:
         """Initialize and configure network intrinsics."""
@@ -101,7 +109,7 @@ class RPICameraController:
         )
         self._picam2.start(config, show_preview=False)
 
-    def _get_new_run_dir(self) -> str:
+    def _get_new_run_dir(self) -> (str, str):
         # Create base directory if it doesn't exist
         if not os.path.exists(self._img_base_path + "/Outputs"):
             os.makedirs(self._img_base_path + "/Outputs")
@@ -127,9 +135,12 @@ class RPICameraController:
         folder_name = f"run{next_run_number:03d}"
         run_dir = os.path.join(self._img_base_path, "Outputs", folder_name)
 
+        file_name = folder_name + "_datadump.jsonl"
+        datadump_file_path = os.path.join(self._img_base_path, "Outputs", file_name)
+
         os.makedirs(run_dir)
 
-        return run_dir
+        return run_dir, datadump_file_path
 
     def _parse_detections(self, metadata: dict) -> Optional[List[Detection]]:
         """Parse raw model outputs into Detection objects."""
@@ -231,17 +242,18 @@ class RPICameraController:
                 cv2.putText(m.array, "ROI", (b_x + 5, b_y + 15), cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
                 cv2.rectangle(m.array, (b_x, b_y), (b_x + b_w, b_y + b_h), (255, 0, 0, 0))
 
-    def _save_image(self, request: any) -> None:
+    def _save_image(self, request: any, timestamp: float) -> None:
         """Save the captured image to the run directory and keep track of image counter."""
 
-        image_path = os.path.join(self._run_dir, f"image_{self._image_counter:03d}.jpg")
+        image_path = os.path.join(self._run_dir, f"image_{timestamp:.3f}.jpg")
         request.save("main", image_path)
-        self._image_counter += 1    
 
     def get_inference(self, save_image: bool = False) -> Optional[List[Detection]]:
         """Run inference and return detections."""
         if self._picam2 is None:
             raise RuntimeError("Camera has not been initialized.")
+
+        timestamp = time.time()
 
         request = self._picam2.capture_request()
         metadata = request.get_metadata()
@@ -256,7 +268,7 @@ class RPICameraController:
 
         if save_image:
             self._draw_detections(request, detections)
-            self._save_image(request)
+            self._save_image(request, timestamp)
         
         # Check if there are no valid detections and if so, create an empty detection with valid=False
         if not detections:
@@ -264,14 +276,40 @@ class RPICameraController:
             detections[0].err_x = 0 # Set errors to 0 because they have to be ints at the receiving end
             detections[0].err_y = 0
 
+        # Log detections to datadump file
+
+        for det in detections:
+            record = {
+                "timestamp": timestamp,
+                **det.to_dict(),
+            }
+            self._log_file.write(json.dumps(record) + "\n")
+
+        # Periodic fsync
+        now = time.time()
+        if now - self._last_fsync >= self._fsync_interval:
+            self._log_file.flush()
+            os.fsync(self._log_file.fileno())
+            self._last_fsync = now
+
         request.release()
         return detections
 
-    def close(self) -> None:
-        """Gracefully stop the camera."""
-        if self._picam2:
-            self._picam2.stop()
-            self._picam2 = None
+def close(self) -> None:
+    """Gracefully stop the camera and close log file."""
+    if self._log_file:
+        try:
+            self._log_file.flush()
+            os.fsync(self._log_file.fileno())
+        except Exception:
+            pass
+        self._log_file.close()
+        self._log_file = None
+
+    if self._picam2:
+        self._picam2.stop()
+        self._picam2 = None
+
 
     def __del__(self) -> None:
         """Destructor to ensure cleanup."""
