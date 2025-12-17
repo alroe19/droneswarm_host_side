@@ -217,8 +217,8 @@ class RPICameraController:
 
                 # Draw image plane error arrows in the x and y direction
                 color = (0, 165, 255)  # Orange, note: GRB format  
-                cv2.arrowedLine(m.array, (det_cx, det_cy), (img_cx, det_cy), color, 2, tipLength=0.1) # err_x term
-                cv2.arrowedLine(m.array, (det_cx, det_cy), (det_cx, img_cy), color, 2, tipLength=0.1) # err_y term
+                # cv2.arrowedLine(m.array, (det_cx, det_cy), (img_cx, det_cy), color, 2, tipLength=0.1) # err_x term
+                # cv2.arrowedLine(m.array, (det_cx, det_cy), (det_cx, img_cy), color, 2, tipLength=0.1) # err_y term
                 # cv2.arrowedLine(m.array, (det_cx, det_cy), (img_cx, img_cy), color, 2, tipLength=0.1)
                 
                 # Draw the background rectangle on the overlay
