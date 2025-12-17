@@ -14,6 +14,7 @@ apt install imx500-all -y
 
 # make python environment:
 python -m venv cam-env
-source .venv/bin/activate
+source .cam-env/bin/activate
+python3 -m pip install --upgrade pip
 python3 -m pip install -r requirements.txt
 
