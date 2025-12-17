@@ -5,7 +5,7 @@
 
 set -e  # Stop the script if any command fails
 
-apt install pipx -y
+apt install python3-pipx -y
 
 apt update -y
 apt full-upgrade -y
