@@ -12,9 +12,12 @@ apt full-upgrade -y
 apt install -y python3-picamera2 --no-install-recommends
 apt install imx500-all -y
 
+apt install numpy
+apt install opencv-python
+
 # make python environment:
-python -m venv cam-env
-source cam-env/bin/activate
-python3 -m pip install --upgrade pip
-python3 -m pip install -r requirements.txt
+# python -m venv cam-env
+# source cam-env/bin/activate
+# python3 -m pip install --upgrade pip
+# python3 -m pip install -r requirements.txt
 
